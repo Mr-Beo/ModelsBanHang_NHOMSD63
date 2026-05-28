@@ -1,0 +1,130 @@
+﻿@page "/editgiay/{id:guid}"
+@rendermode InteractiveServer
+@using API.Models.DTO
+@inject IGiayService GiayService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+
+<h4 class="fw-bold mb-4"><i class="bi bi-pencil-square me-2"></i>Chỉnh sửa sản phẩm</h4>
+
+<div class="card shadow-sm p-4">
+    @if (isLoading)
+    {
+        <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+    }
+    else if (giay == null)
+    {
+        <div class="alert alert-danger">Không tìm thấy sản phẩm.</div>
+    }
+    else
+    {
+        <EditForm Model="giay" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Tên giày</label>
+                    <InputText class="form-control" @bind-Value="giay.TenGiay" />
+                    <ValidationMessage For="@(() => giay.TenGiay)" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Thương hiệu</label>
+                    <InputSelect class="form-select" @bind-Value="giay.ThuongHieuId">
+                        <option value="">Chọn thương hiệu</option>
+                        @foreach (var item in dropdownOptions.ThuongHieus)
+                        {
+                            <option value="@item.Id">@item.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Chất liệu</label>
+                    <InputSelect class="form-select" @bind-Value="giay.ChatLieuId">
+                        <option value="">Chọn chất liệu</option>
+                        @foreach (var item in dropdownOptions.ChatLieus)
+                        {
+                            <option value="@item.Id">@item.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Thể loại</label>
+                    <InputSelect class="form-select" @bind-Value="giay.TheLoaiGiayId">
+                        <option value="">Chọn thể loại</option>
+                        @foreach (var item in dropdownOptions.TheLoaiGiays)
+                        {
+                            <option value="@item.Id">@item.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Đế giày</label>
+                    <InputSelect class="form-select" @bind-Value="giay.DeGiayId">
+                        <option value="">Chọn đế giày</option>
+                        @foreach (var item in dropdownOptions.DeGiays)
+                        {
+                            <option value="@item.Id">@item.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Kiểu dáng</label>
+                    <InputSelect class="form-select" @bind-Value="giay.KieuDangId">
+                        <option value="">Chọn kiểu dáng</option>
+                        @foreach (var item in dropdownOptions.KieuDangs)
+                        {
+                            <option value="@item.Id">@item.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-12 mt-4">
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save me-2"></i>Lưu</button>
+                    <a href="/sanpham" class="btn btn-secondary"><i class="bi bi-arrow-left me-2"></i>Quay lại</a>
+                </div>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private GiayDTO giay;
+    private DropdownOptionsDTO dropdownOptions = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        try
+        {
+            // Lấy dữ liệu giày
+            giay = await GiayService.GetByIdAsync(Id);
+            if (giay == null)
+            {
+                return;
+            }
+
+            // Lấy dữ liệu dropdown
+            dropdownOptions = await GiayService.GetDropdownOptionsAsync();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        try
+        {
+            await GiayService.UpdateAsync(giay);
+            await JS.InvokeVoidAsync("alert", "Cập nhật thành công.");
+            NavigationManager.NavigateTo("/sanpham");
+        }
+        catch
+        {
+            await JS.InvokeVoidAsync("alert", "Cập nhật thất bại.");
+        }
+    }
+}

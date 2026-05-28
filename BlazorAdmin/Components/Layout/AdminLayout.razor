@@ -1,0 +1,176 @@
+﻿@using API.Models.DTO
+@rendermode InteractiveServer
+@inherits LayoutComponentBase
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthProvider
+@inject IJSRuntime JSRuntime
+@inject IThongBaoService ThongBaoService
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+<link href="css/Sidebar.css" rel="stylesheet" />
+<style>
+    .dropdown-avatar {
+        padding: 12px 18px;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .dropdown-item {
+        padding: 12px 18px;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .dropdown-bell {
+        max-height: 400px;
+        overflow-y: auto;
+        background: white;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        position: absolute;
+        right: 0;
+        width: 500px;
+        z-index: 1000;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+</style>
+
+<div class="page">
+    <div class="sidebar">
+        <NavAdmin />
+    </div>
+
+    <div class="main">
+        <div class="header d-flex align-items-center justify-content-between px-3">
+            <div class="breadcrumb"><i class="fas fa-bars"></i></div>
+            <div class="user-area d-flex align-items-center gap-3">
+                <span class="bell" @onclick="ToggleBellDropdown">
+                    🔔<span class="badge">@thongBaos.Count</span>
+                    @if (showBellDropdown)
+                    {
+                        <div class="dropdown-bell">
+                            <div class="bell-title">Thông báo mới</div>
+                            <hr />
+                            @if (thongBaos.Count == 0)
+                            {
+                                <div class="dropdown-item text-muted">Không có thông báo mới</div>
+                            }
+                            else
+                            {
+                                @foreach (var tb in thongBaos)
+                                {
+                                    <div class="dropdown-item">
+                                        <div>@tb.NoiDung</div>
+                                        <small class="text-muted">@tb.ThoiGian.ToString("dd/MM/yyyy HH:mm")</small>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                </span>
+
+                <img class="avatar" @onclick="ToggleAvatarDropdown"
+                     src="https://preview.redd.it/can-someone-give-the-the-fish-for-calm-zone-i-only-need-v0-ke9mz4262ase1.jpeg?width=640&crop=smart&auto=webp&s=2f1bab5cdbf8a2bab087b716d46f3eecd7044917"
+                     alt="user" />
+
+                @if (showAvatarDropdown)
+                {
+                    <div class="dropdown-avatar">
+                        <div class="dropdown-item" @onclick="GotoProfile">Thông tin tài khoản</div>
+                        <div class="dropdown-item" @onclick="ShowLogoutConfirm">Đăng xuất</div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="dashboard-content">
+            @Body
+        </div>
+    </div>
+</div>
+
+<!-- Modal xác nhận đăng xuất -->
+@if (showLogoutConfirm)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Xác nhận đăng xuất</h5>
+                    <button type="button" class="btn-close" @onclick="HideLogoutConfirm"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Bạn có chắc chắn muốn đăng xuất?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="HideLogoutConfirm">Hủy</button>
+                    <button type="button" class="btn btn-primary" @onclick="Logout">Đăng xuất</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool showBellDropdown = false;
+    private bool showAvatarDropdown = false;
+    private bool showLogoutConfirm = false;
+    private string breadcrumbText = "";
+
+    private List<ThongBaoDTO> thongBaos = new();
+
+    private string Capitalize(string input)
+    {
+        return string.IsNullOrWhiteSpace(input) ? "" :
+               char.ToUpper(input[0]) + input.Substring(1).ToLower();
+    }
+
+    private async void ToggleBellDropdown()
+    {
+        showBellDropdown = !showBellDropdown;
+        if (showBellDropdown)
+        {
+            showAvatarDropdown = false;
+
+            thongBaos = await ThongBaoService.GetThongBaoMoiAsync();
+            thongBaos = thongBaos.OrderByDescending(x => x.ThoiGian).ToList();
+
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleAvatarDropdown()
+    {
+        showAvatarDropdown = !showAvatarDropdown;
+        if (showAvatarDropdown) showBellDropdown = false;
+    }
+
+    private void ShowLogoutConfirm()
+    {
+        showLogoutConfirm = true;
+        showAvatarDropdown = false;
+    }
+
+    private void HideLogoutConfirm()
+    {
+        showLogoutConfirm = false;
+    }
+
+    private async Task Logout()
+    {
+        await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "authToken");
+
+        if (AuthProvider is CustomAuthenticationStateProvider customProvider)
+        {
+            customProvider.MarkUserAsLoggedOut();
+        }
+
+        showLogoutConfirm = false;
+        NavigationManager.NavigateTo("/", true);
+    }
+
+    private void GotoProfile()
+    {
+        showAvatarDropdown = false;
+        NavigationManager.NavigateTo("/ThongTinAdmin");
+    }
+}

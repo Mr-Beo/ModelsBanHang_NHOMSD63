@@ -1,0 +1,378 @@
+﻿@page "/Admin/AddVoucher"
+@rendermode InteractiveServer
+
+@using Data.Models
+@using BlazorAdmin.Service.IService
+@using System.ComponentModel.DataAnnotations
+
+@inject IVoucherService service
+@inject IKhachHangService khachHangService
+@inject IKhachHangVoucherService khachHangVoucherService
+@inject NavigationManager manager
+
+<h3 class="mb-4 text-primary">🎁 Thêm Voucher mới</h3>
+
+<EditForm Model="Input" OnValidSubmit="SubmitFormCreate">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    @* aisygduyasgduyg *@
+    <div class="row g-4">
+        <!-- Form Voucher -->
+        <div class="col-md-6">
+            <div class="border rounded p-4 shadow-sm bg-light">
+                <h5 class="mb-3">📋 Thông tin Voucher</h5>
+
+                <div class="mb-3">
+                    <label class="form-label">Tên Voucher:</label>
+                    <InputText class="form-control" @bind-Value="Input.TenVoucher" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Ngày bắt đầu:</label>
+                    <InputDate class="form-control" @bind-Value="Input.NgayBatDau" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Ngày kết thúc:</label>
+                    <InputDate class="form-control" @bind-Value="Input.NgayKetThuc" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Giá trị giảm:</label>
+                    <div class="input-group">
+                        <InputNumber class="form-control" @bind-Value="GiaTriGiam" />
+                        <button class="btn @(IsPhanTram ? "btn-primary" : "btn-outline-secondary")"
+                                @onclick="() => DoiKieuGiamGia(true)">
+                            %
+                        </button>
+                        <button class="btn @(!IsPhanTram ? "btn-primary" : "btn-outline-secondary")"
+                                @onclick="() => DoiKieuGiamGia(false)">
+                            ₫
+                        </button>
+                    </div>
+                    @if (!string.IsNullOrEmpty(LoiSoTienGiam))
+                    {
+                        <div class="alert alert-danger">
+                            @LoiSoTienGiam
+                        </div>
+                    }
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Số lượng:</label>
+                    <InputNumber class="form-control" @bind-Value="Input.SoLuong" @onchange="OnSoLuongChanged" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Điều kiện giảm:</label>
+                    <InputNumber class="form-control" @bind-Value="Input.DieuKienToiThieu" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Giảm tối đa:</label>
+                    <InputNumber class="form-control" @bind-Value="Input.GiamToiDa" />
+                </div>
+
+                <button type="submit" class="btn btn-success w-100">➕ Thêm Voucher</button>
+            </div>
+        </div>
+
+        <!-- Form Gán khách hàng -->
+        <div class="col-md-6">
+            <div class="border rounded p-4 shadow-sm bg-white">
+                <h5 class="mb-3">👥 Gán cho Khách Hàng</h5>
+
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="checkAll"
+                           @bind="IsAllChecked" @bind:event="onchange" />
+                    <label class="form-check-label fw-bold" for="checkAll">Chọn tất cả</label>
+                </div>
+
+                <div class="border p-2 rounded" style="max-height: 400px; overflow-y: auto;">
+                    @foreach (var kh in DanhSachKhachHang)
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox"
+                                   id="@kh.KhachHangId"
+                                   checked="@Input.KhachHangIds.Contains(kh.KhachHangId)"
+                                   @onchange="e => ToggleKhachHang(kh.KhachHangId, (bool)e.Value!)" />
+                            <label class="form-check-label" for="@kh.KhachHangId">
+                                @kh.HoTen (@kh.Email)
+                            </label>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    private InputModel Input { get; set; } = new();
+    private string? LoiSoTienGiam;
+    private bool IsPhanTram = true;
+    private List<KhachHang> DanhSachKhachHang = new();
+    private bool _isAllChecked;
+
+    private float? GiaTriGiam
+    {
+        get => IsPhanTram ? Input.PhanTram : Input.SoTienGiam;
+        set
+        {
+            if (IsPhanTram)
+            {
+                Input.PhanTram = value ?? 0;
+                Input.SoTienGiam = 0;
+            }
+            else
+            {
+                Input.SoTienGiam = value ?? 0;
+                Input.PhanTram = 0;
+            }
+        }
+    }
+
+    private bool IsAllChecked
+    {
+        get => _isAllChecked;
+        set
+        {
+            _isAllChecked = value;
+            ToggleAllKhachHang(_isAllChecked);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        DanhSachKhachHang = await khachHangService.GetAll();
+    }
+
+    private void DoiKieuGiamGia(bool laPhanTram)
+    {
+        if (IsPhanTram != laPhanTram)
+        {
+            IsPhanTram = laPhanTram;
+            GiaTriGiam = null;
+        }
+    }
+
+    private void ToggleKhachHang(Guid id, bool isChecked)
+    {
+        if (isChecked)
+        {
+            if (!Input.KhachHangIds.Contains(id))
+                Input.KhachHangIds.Add(id);
+        }
+        else
+        {
+            Input.KhachHangIds.Remove(id);
+        }
+
+        _isAllChecked = Input.KhachHangIds.Count == DanhSachKhachHang.Count;
+    }
+
+    private void ToggleAllKhachHang(bool isChecked)
+    {
+        if (isChecked)
+        {
+            if (Input.SoLuong <= 0 || Input.SoLuong >= DanhSachKhachHang.Count)
+            {
+                Input.KhachHangIds = DanhSachKhachHang.Select(kh => kh.KhachHangId).ToList();
+            }
+            else
+            {
+                Input.KhachHangIds = DanhSachKhachHang
+                    .Select(kh => kh.KhachHangId)
+                    .Take(Input.SoLuong)
+                    .ToList();
+            }
+        }
+        else
+        {
+            Input.KhachHangIds.Clear();
+        }
+    }
+
+    private void OnSoLuongChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int newValue))
+        {
+            Input.SoLuong = newValue;
+
+            if (Input.KhachHangIds.Count > newValue)
+            {
+                Input.KhachHangIds = Input.KhachHangIds.Take(newValue).ToList();
+            }
+
+            _isAllChecked = Input.KhachHangIds.Count == DanhSachKhachHang.Count;
+        }
+    }
+
+    private async Task SubmitFormCreate()
+    {
+        LoiSoTienGiam = null;
+
+        // Trim tên
+        Input.TenVoucher = Input.TenVoucher?.Trim() ?? "";
+
+        // Validate tên
+        if (string.IsNullOrWhiteSpace(Input.TenVoucher))
+        {
+            LoiSoTienGiam = "Tên voucher không được để trống.";
+            return;
+        }
+
+        // Validate ngày
+        if (Input.NgayBatDau.Date < DateTime.Today)
+        {
+            LoiSoTienGiam = "Ngày bắt đầu không được nhỏ hơn hôm nay.";
+            return;
+        }
+
+        if (Input.NgayKetThuc <= Input.NgayBatDau)
+        {
+            LoiSoTienGiam = "Ngày kết thúc phải lớn hơn ngày bắt đầu.";
+            return;
+        }
+
+        // Validate số lượng
+        if (Input.SoLuong <= 0)
+        {
+            LoiSoTienGiam = "Số lượng voucher phải lớn hơn 0.";
+            return;
+        }
+
+        // Validate điều kiện
+        if (Input.DieuKienToiThieu < 0)
+        {
+            LoiSoTienGiam = "Điều kiện tối thiểu không hợp lệ.";
+            return;
+        }
+
+        if (Input.GiamToiDa < 0)
+        {
+            LoiSoTienGiam = "Giảm tối đa không hợp lệ.";
+            return;
+        }
+
+        // Validate kiểu giảm
+        if (IsPhanTram)
+        {
+            if (Input.PhanTram <= 0 || Input.PhanTram > 100)
+            {
+                LoiSoTienGiam = "Phần trăm giảm phải từ 1 - 100.";
+                return;
+            }
+
+            var soTienTuPhanTram =
+                (Input.PhanTram / 100f) * Input.DieuKienToiThieu;
+
+            if (Input.GiamToiDa > 0 &&
+                soTienTuPhanTram > Input.GiamToiDa)
+            {
+                LoiSoTienGiam =
+                    "Số tiền giảm tính theo phần trăm vượt quá giảm tối đa.";
+                return;
+            }
+
+            Input.SoTienGiam = 0;
+        }
+        else
+        {
+            if (Input.SoTienGiam <= 0)
+            {
+                LoiSoTienGiam = "Số tiền giảm phải lớn hơn 0.";
+                return;
+            }
+
+            if (Input.GiamToiDa > 0 &&
+                Input.SoTienGiam > Input.GiamToiDa)
+            {
+                LoiSoTienGiam =
+                    "Số tiền giảm không được vượt quá giảm tối đa.";
+                return;
+            }
+
+            Input.PhanTram = 0;
+        }
+
+        // Validate số khách
+        if (Input.KhachHangIds.Count > Input.SoLuong)
+        {
+            LoiSoTienGiam =
+                $"Bạn chỉ có {Input.SoLuong} voucher nhưng đã chọn {Input.KhachHangIds.Count} khách.";
+            return;
+        }
+
+        // Check trùng tên voucher
+        var allVoucher = await service.GetAll();
+
+        bool isExist = allVoucher.Any(x =>
+            x.TenVoucher.Trim().ToLower() ==
+            Input.TenVoucher.Trim().ToLower());
+
+        if (isExist)
+        {
+            LoiSoTienGiam = "Tên voucher đã tồn tại.";
+            return;
+        }
+
+        // Tạo voucher
+        var newVoucher = new Voucher
+        {
+            VoucherId = Guid.NewGuid(),
+            TenVoucher = Input.TenVoucher,
+            NgayBatDau = Input.NgayBatDau,
+            NgayKetThuc = Input.NgayKetThuc,
+            PhanTram = Input.PhanTram,
+            SoTienGiam = Input.SoTienGiam,
+            GiamToiDa = Input.GiamToiDa,
+            DieuKienToiThieu = Input.DieuKienToiThieu,
+            TrangThai = true,
+            SoLuong = Input.SoLuong
+        };
+
+        await service.Add(newVoucher);
+
+        // Gán khách hàng
+        if (Input.KhachHangIds.Any())
+        {
+            await khachHangVoucherService.AssignMultipleAsync(
+                newVoucher.VoucherId,
+                Input.KhachHangIds
+            );
+        }
+
+        manager.NavigateTo("/Admin/voucher");
+    }
+
+    private sealed class InputModel
+    {
+        [Required(ErrorMessage = "Tên voucher không được để trống")]
+        [StringLength(100, ErrorMessage = "Tên voucher tối đa 100 ký tự")]
+        public string TenVoucher { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Ngày bắt đầu không được để trống")]
+        public DateTime NgayBatDau { get; set; } = DateTime.Today;
+
+        [Required(ErrorMessage = "Ngày kết thúc không được để trống")]
+        public DateTime NgayKetThuc { get; set; } = DateTime.Today.AddDays(7);
+
+        [Range(0, 100, ErrorMessage = "Phần trăm giảm phải từ 0 - 100")]
+        public float PhanTram { get; set; }
+
+        [Range(0, double.MaxValue, ErrorMessage = "Số tiền giảm phải lớn hơn hoặc bằng 0")]
+        public float SoTienGiam { get; set; }
+
+        [Range(0, double.MaxValue, ErrorMessage = "Giảm tối đa phải lớn hơn hoặc bằng 0")]
+        public float GiamToiDa { get; set; }
+
+        [Range(0, double.MaxValue, ErrorMessage = "Điều kiện tối thiểu phải lớn hơn hoặc bằng 0")]
+        public float DieuKienToiThieu { get; set; }
+
+        [Range(1, int.MaxValue, ErrorMessage = "Số lượng phải lớn hơn 0")]
+        public int SoLuong { get; set; }
+
+        public List<Guid> KhachHangIds { get; set; } = new();
+    }
+}

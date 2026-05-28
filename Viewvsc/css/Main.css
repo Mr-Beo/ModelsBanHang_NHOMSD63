@@ -1,0 +1,87 @@
+
+.sidebar {
+    position: fixed;
+    left: 0; top: 0; bottom: 0;
+    width: 240px;
+    background: #fff;
+    border-right: 1px solid #eee;
+    z-index: 10;
+    padding-top: 18px;
+}
+.logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 22px;
+    padding: 0 24px 24px 24px;
+    gap: 10px;
+}
+.logo img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+}
+.sidebar ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.sidebar ul li {
+    position: relative;
+    padding: 14px 32px 14px 32px;
+    color: #222;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-left: 4px solid transparent;
+    transition: background 0.2s, color 0.2s;
+    font-size: 16px;
+}
+.sidebar ul li.active, .sidebar ul li:hover {
+    background: #e6f7ff;
+    color: #1890ff;
+    border-left: 4px solid #1890ff;
+    font-weight: 500;
+}
+.sidebar ul li .arrow {
+    margin-left: auto;
+    font-size: 13px;
+    color: #888;
+}
+.main {
+    margin-left: 240px;
+    padding: 0 32px 32px 32px;
+}
+@media (max-width: 900px) {
+    .main {
+        padding: 0 8px 8px 8px;
+    }
+}
+.header {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    height: 60px;
+    background: #fff;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 24px;
+}
+.user-area {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding-right: 18px;
+}
+.bell {
+    position: relative;
+    font-size: 22px;
+    cursor: pointer;
+}
+.avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid #eee;
+}

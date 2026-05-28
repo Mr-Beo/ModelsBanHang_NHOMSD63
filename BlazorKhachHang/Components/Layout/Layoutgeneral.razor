@@ -1,0 +1,200 @@
+﻿@using BlazorKhachHang.Service.IService
+@inherits LayoutComponentBase
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@inject IGioHangService GioHangService
+@inject CartState CartState
+@inject FavoriteState FavoriteState
+@inject IGiayYeuThichService giayYeuThichService
+
+<link href="css/Layoutgeneral.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+<header>
+    
+    <nav class="top-nav">
+        <a href="#">Help</a>
+        <a href="/Oder">Order Tracker</a>
+        <a href="#">About Us</a>
+        <a href="#">Newsletter Signup</a>
+    </nav>
+</header>
+
+<div class="container-header">
+    <div class="logo">
+        <img src="/Logo.png" alt="Fshoes Logo">
+    </div>
+    <form class="search-bar" action="#">
+        <i class="fa fa-search" style="color:#17695b; margin-right:10px;"></i>
+        <input type="text" placeholder="What can we help you find?">
+        <button type="submit">SEARCH</button>
+    </form>
+    <div class="user-icons">
+        <a href="/khachhang" class="user-icon">
+            <i class="fa-solid fa-users"></i>
+        </a>
+
+        @if (string.IsNullOrEmpty(currentUsername))
+        {
+            @* Khi chưa đăng nhập *@
+            <a href="login" class="user-icon" title="Đăng nhập">
+                <i class="fa-regular fa-user"></i>
+            </a>
+        }
+        else
+        {
+            @* Khi đã đăng nhập thành công *@
+            <div class="user-logged-in d-flex align-items-center">
+                <span class="welcome-text me-2">Chào mừng <b>@currentUsername</b> đã trở lại!</span>
+                <a href="login" class="user-icon" title="Tài khoản">
+                    <i class="fa-solid fa-user-check text-success"></i>
+                </a>
+                <button @onclick="HandleLogout" class="btn-logout-mini" title="Thoát tài khoản">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+        }
+
+        <a href="/favourite" class="notification">
+            <i class="fa-regular fa-heart"></i>
+
+            @if (FavoriteState.FavoriteCount > 0)
+            {
+                <span class="badge">@FavoriteState.FavoriteCount</span>
+            }
+        </a>
+
+        <a href="/Cart" class="notification">
+            <i class="fa-solid fa-cart-shopping"></i>
+
+            @if (CartState.CartCount > 0)
+            {
+                <span class="badge">@CartState.CartCount</span>
+            }
+        </a>
+
+    </div>
+</div>
+
+<nav class="main-nav">
+    <a href="/" class="active">HOME</a>
+    <NavLink href="/shoelist" class="nav-link" activeClass="active">SHOES LIST</NavLink>
+    <NavLink href="/vouchers" class="nav-link" activeClass="active">VOUCHER</NavLink>
+    <NavLink href="/blog" class="nav-link" activeClass="active">BLOGS</NavLink>
+    <NavLink href="/polish" class="nav-link" activeClass="active">SHOE POLISH</NavLink>
+</nav>
+
+<main>
+    @Body
+</main>
+
+<footer>
+    @* Giữ nguyên phần Footer như cũ của bạn *@
+    <div class="footer-container">
+        <div class="footer-main">
+            <div class="footer-left">
+                <img src="LOGO.png" alt="Fshoes logo" class="footer-logo">
+                <div class="footer-slogan">All Kinds of Shoes, All in One Place!</div>
+            </div>
+        </div>
+        <div class="footer-copyright">
+            Copyright © 2022 The Meow Shop. All rights reserved
+        </div>
+    </div>
+</footer>
+
+<style>
+    /* Style bổ sung cho nút Logout và thông báo */
+    .user-logged-in {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+    }
+
+    .welcome-text {
+        color: #17695b;
+    }
+
+    .btn-logout-mini {
+        background: none;
+        border: none;
+        color: #dc3545;
+        cursor: pointer;
+        font-size: 18px;
+        padding: 0;
+        transition: 0.3s;
+    }
+
+        .btn-logout-mini:hover {
+            color: #a71d2a;
+            transform: scale(1.1);
+        }
+</style>
+
+@code {
+
+    private string? currentUsername;
+    private int cartCount = 0; // thêm hiển thị số lượng sp giỏ hàng
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Lấy username từ localStorage sau khi đăng nhập thành công
+            currentUsername = await JS.InvokeAsync<string>("localStorage.getItem", "username");
+            await LoadCartCount(); // thêm hiển số lượng sp giỏ hàng
+
+            await LoadFavoriteCount();  // thêm hiển thị  số lượng sp yêu thích
+            StateHasChanged(); // Cập nhật lại UI
+        }
+    }
+
+    private async Task HandleLogout()
+    {
+        await JS.InvokeVoidAsync("localStorage.clear");
+
+        CartState.SetCount(0);
+        FavoriteState.SetCount(0);
+
+        currentUsername = null;
+
+        await JS.InvokeVoidAsync("alert", "Bạn đã thoát tài khoản thành công!");
+
+        Nav.NavigateTo("/", true);
+    }
+
+    private async Task LoadCartCount()
+    {
+        var khachId = await JS.InvokeAsync<string>("localStorage.getItem", "khachHangId");
+
+        if (string.IsNullOrEmpty(khachId))
+        {
+            cartCount = 0;
+            return;
+        }
+
+        var cart = await GioHangService.LayTheoTaiKhoanAsync(Guid.Parse(khachId));
+
+        if (cart != null && cart.DanhSachChiTiet != null)
+        {
+            CartState.SetCount(cart.DanhSachChiTiet.Count);
+        }
+    }
+    protected override void OnInitialized()
+    {
+        CartState.OnChange += StateHasChanged;
+        FavoriteState.OnChange += StateHasChanged;
+    }
+    // thêm load hiển thị sp yêu thích
+    private async Task LoadFavoriteCount()
+    {
+        var khachId = await JS.InvokeAsync<string>("localStorage.getItem", "khachHangId");
+        if (string.IsNullOrEmpty(khachId))
+            return;
+
+        var favs = await giayYeuThichService.GetAllByKhachHangAsync(Guid.Parse(khachId));
+
+        FavoriteState.SetCount(favs.Count());
+    }
+
+}

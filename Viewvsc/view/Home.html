@@ -1,0 +1,269 @@
+
+<h2>Thống kê</h2>
+<div class="stats-cards">
+    <div class="stat-card today">
+        <div class="stat-title">Hôm nay</div>
+        <div class="stat-value">0 ₫</div>
+        <div class="stat-detail">
+            <span>Sản phẩm 0</span> |
+            <span>Đơn thành công 0</span> |
+            <span>Đơn huỷ 0</span> |
+            <span>Đơn trả 0</span>
+        </div>
+    </div>
+    <div class="stat-card week">
+        <div class="stat-title">Tuần này</div>
+        <div class="stat-value">2,794,651 ₫</div>
+        <div class="stat-detail">
+            <span>Sản phẩm 16</span> |
+            <span>Đơn thành công 4</span> |
+            <span>Đơn huỷ 1</span> |
+            <span>Đơn trả 1</span>
+        </div>
+    </div>
+    <div class="stat-card month">
+        <div class="stat-title">Tháng này</div>
+        <div class="stat-value">2,794,651 ₫</div>
+        <div class="stat-detail">
+            <span>Sản phẩm 16</span> |
+            <span>Đơn thành công 4</span> |
+            <span>Đơn huỷ 1</span> |
+            <span>Đơn trả 1</span>
+        </div>
+    </div>
+    <div class="stat-card year">
+        <div class="stat-title">Năm nay</div>
+        <div class="stat-value">2,794,651 ₫</div>
+        <div class="stat-detail">
+            <span>Sản phẩm 16</span> |
+            <span>Đơn thành công 4</span> |
+            <span>Đơn huỷ 1</span> |
+            <span>Đơn trả 1</span>
+        </div>
+    </div>
+</div>
+<div class="filter-area">
+    <span>Bộ lọc</span>
+    <button class="filter-btn active">NGÀY</button>
+    <button class="filter-btn">TUẦN</button>
+    <button class="filter-btn">THÁNG</button>
+    <button class="filter-btn">NĂM</button>
+    <button class="filter-btn">TÙY CHỈNH</button>
+    <button class="export-btn">EXPORT TO EXCEL</button>
+</div>
+<div class="dashboard-table-chart">
+    <div class="table-area">
+        <div class="table-title">Danh sách sản phẩm bán chạy theo tùy chỉnh</div>
+        <table class="product-table">
+            <thead>
+                <tr>
+                    <th>Ảnh</th>
+                    <th>Tên sản phẩm</th>
+                    <th>Số lượng</th>
+                    <th>Giá tiền</th>
+                    <th>Kích cỡ</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><img src="https://i.imgur.com/1Q9Z1Zm.png" alt="sp1" class="product-img"></td>
+                    <td>Balen Grey 2023 - Tím - Bạc - Đế nhựa - Giày lưới - Balenciaga</td>
+                    <td>18</td>
+                    <td>550,000 ₫</td>
+                    <td>40,41,42</td>
+                </tr>
+                <tr>
+                    <td><img src="https://i.imgur.com/1Q9Z1Zm.png" alt="sp2" class="product-img"></td>
+                    <td>Converse Venom - Tím - Da - Đế nhôm - Giày tây - Converse</td>
+                    <td>18</td>
+                    <td>950,000 ₫</td>
+                    <td>41</td>
+                </tr>
+                <tr>
+                    <td><img src="https://i.imgur.com/1Q9Z1Zm.png" alt="sp3" class="product-img"></td>
+                    <td>Balen Grey 2023 - Xanh dương - Bạc - Đế nhựa - Giày lưới - Balenciaga</td>
+                    <td>15</td>
+                    <td>490,000 ₫</td>
+                    <td>40,42</td>
+                </tr>
+                <tr>
+                    <td><img src="https://i.imgur.com/1Q9Z1Zm.png" alt="sp4" class="product-img"></td>
+                    <td>Kkkk - Xanh dương - Sắt - Đế sắt - Giày cao cổ - Converse</td>
+                    <td>9</td>
+                    <td>100,000 ₫</td>
+                    <td>40</td>
+                </tr>
+                <tr>
+                    <td><img src="https://i.imgur.com/1Q9Z1Zm.png" alt="sp5" class="product-img"></td>
+                    <td>Kkkk - Tím - Sắt - Đế sắt - Giày cao cổ - Converse</td>
+                    <td>9</td>
+                    <td>700,000 ₫</td>
+                    <td>41</td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="table-pagination">
+            <span>Xem
+                <select>
+                    <option>5</option>
+                    <option>10</option>
+                </select>
+                sản phẩm
+            </span>
+            <div class="pagination-btns">
+                <button disabled>&lt;</button>
+                <button class="active">1</button>
+                <button>2</button>
+                <button>&gt;</button>
+            </div>
+        </div>
+
+    </div>
+    <div class="chart-area">
+        <div class="chart-title">Biểu đồ trạng thái tùy chỉnh</div>
+        <div class="fake-pie"></div>
+        <div class="chart-legend">
+            <div><span class="legend-color" style="background:#e74c3c"></span>Đã huỷ - 7.14%</div>
+            <div><span class="legend-color" style="background:#f1c40f"></span>Chờ xác nhận - 14.29%</div>
+            <div><span class="legend-color" style="background:#8e44ad"></span>Chờ giao hàng - 14.29%</div>
+            <div><span class="legend-color" style="background:#3498db"></span>Đang vận chuyển - 0%</div>
+            <div><span class="legend-color" style="background:#1abc9c"></span>Đã giao hàng - 0%</div>
+            <div><span class="legend-color" style="background:#2ecc71"></span>Đã thanh toán - 7.14%</div>
+            <div><span class="legend-color" style="background:#95a5a6"></span>Chờ thanh toán - 0%</div>
+            <div><span class="legend-color" style="background:#27ae60"></span>Hoàn thành - 42.86%</div>
+            <div><span class="legend-color" style="background:#16a085"></span>Trả hàng - 14.29%</div>
+        </div>
+    </div>
+</div>
+<div class="dashboard-table-chart">
+    <div class="table-area">
+        <div class="table-title">Danh sách sản phẩm bán chạy theo tùy chỉnh</div>
+        <table class="product-table">
+            <thead>
+                <tr>
+                    <th>Ảnh</th>
+                    <th>Tên sản phẩm</th>
+                    <th>Số lượng</th>
+                    <th>Giá tiền</th>
+                    <th>Kích cỡ</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><img src="https://i.imgur.com/1Q9Z1Zm.png" alt="sp1" class="product-img"></td>
+                    <td>Balen Grey 2023 - Tím - Bạc - Đế nhựa - Giày lưới - Balenciaga</td>
+                    <td>18</td>
+                    <td>550,000 ₫</td>
+                    <td>40,41,42</td>
+                </tr>
+                <tr>
+                    <td><img src="https://i.imgur.com/1Q9Z1Zm.png" alt="sp2" class="product-img"></td>
+                    <td>Converse Venom - Tím - Da - Đế nhôm - Giày tây - Converse</td>
+                    <td>18</td>
+                    <td>950,000 ₫</td>
+                    <td>41</td>
+                </tr>
+                <tr>
+                    <td><img src="https://i.imgur.com/1Q9Z1Zm.png" alt="sp3" class="product-img"></td>
+                    <td>Balen Grey 2023 - Xanh dương - Bạc - Đế nhựa - Giày lưới - Balenciaga</td>
+                    <td>15</td>
+                    <td>490,000 ₫</td>
+                    <td>40,42</td>
+                </tr>
+                <tr>
+                    <td><img src="https://i.imgur.com/1Q9Z1Zm.png" alt="sp4" class="product-img"></td>
+                    <td>Kkkk - Xanh dương - Sắt - Đế sắt - Giày cao cổ - Converse</td>
+                    <td>9</td>
+                    <td>100,000 ₫</td>
+                    <td>40</td>
+                </tr>
+                <tr>
+                    <td><img src="https://i.imgur.com/1Q9Z1Zm.png" alt="sp5" class="product-img"></td>
+                    <td>Kkkk - Tím - Sắt - Đế sắt - Giày cao cổ - Converse</td>
+                    <td>9</td>
+                    <td>700,000 ₫</td>
+                    <td>41</td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="table-pagination">
+            <span>Xem
+                <select>
+                    <option>5</option>
+                    <option>10</option>
+                </select>
+                sản phẩm
+            </span>
+            <div class="pagination-btns">
+                <button disabled>&lt;</button>
+                <button class="active">1</button>
+                <button>2</button>
+                <button>&gt;</button>
+            </div>
+        </div>
+
+    </div>
+    <div class="stats-right">
+        <div class="stats-card">
+            <span class="stats-icon">📊</span> Doanh thu ngày
+            <span class="stats-value">6,040,253 ₫</span>
+            <span class="stats-percent up">+53.73%</span>
+        </div>
+        <div class="stats-card">
+            <span class="stats-icon">📊</span> Doanh thu Tuần
+            <span class="stats-value">8,834,904 ₫</span>
+            <span class="stats-percent up">+100%</span>
+        </div>
+        <div class="stats-card">
+            <span class="stats-icon">📊</span> Doanh thu Tháng
+            <span class="stats-value">8,834,904 ₫</span>
+            <span class="stats-percent up">+100%</span>
+        </div>
+        <div class="stats-card">
+            <span class="stats-icon">📊</span> Doanh thu năm
+            <span class="stats-value">8,834,904 ₫</span>
+            <span class="stats-percent up">+100%</span>
+        </div>
+        <div class="stats-card">
+            <span class="stats-icon">📦</span> Đơn hàng ngày
+            <span class="stats-value">2</span>
+            <span class="stats-percent down">-81.82%</span>
+        </div>
+        <div class="stats-card">
+            <span class="stats-icon">📦</span> Đơn hàng tuần
+            <span class="stats-value">6</span>
+            <span class="stats-percent up">+100%</span>
+        </div>
+        <div class="stats-card">
+            <span class="stats-icon">📦</span> Đơn hàng tháng
+            <span class="stats-value">6</span>
+            <span class="stats-percent up">+100%</span>
+        </div>
+        <div class="stats-card">
+            <span class="stats-icon">📦</span> Đơn hàng năm
+            <span class="stats-value">6</span>
+            <span class="stats-percent up">+100%</span>
+        </div>
+        <div class="stats-card">
+            <span class="stats-icon">👟</span> Sản phẩm ngày
+            <span class="stats-value">21</span>
+            <span class="stats-percent up">+23.81%</span>
+        </div>
+        <div class="stats-card">
+            <span class="stats-icon">👟</span> Sản phẩm tuần
+            <span class="stats-value">37</span>
+            <span class="stats-percent up">+100%</span>
+        </div>
+        <div class="stats-card">
+            <span class="stats-icon">👟</span> Sản phẩm tháng
+            <span class="stats-value">37</span>
+            <span class="stats-percent up">+100%</span>
+        </div>
+        <div class="stats-card">
+            <span class="stats-icon">👟</span> Sản phẩm năm
+            <span class="stats-value">37</span>
+            <span class="stats-percent up">+100%</span>
+        </div>
+    </div>
+
+</div>

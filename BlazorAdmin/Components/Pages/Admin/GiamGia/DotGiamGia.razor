@@ -1,0 +1,242 @@
+﻿@page "/dotgiamgia"
+@using Data.Models
+@using BlazorAdmin.Service.IService
+@layout AdminLayout
+@inject IGiamGiaService GiamGiaService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<link href="/css/site.css" rel="stylesheet" />
+
+<h3 class="mb-3">🎯 Quản lý Đợt Khuyến mại</h3>
+
+<!-- Thống kê -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 bg-primary text-white h-100">
+            <div class="card-body text-center">
+                <div class="fs-2 mb-2">📦</div>
+                <div class="fw-semibold">Tổng số đợt</div>
+                <div class="fs-4 fw-bold">@all.Count</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 bg-success text-white h-100">
+            <div class="card-body text-center">
+                <div class="fs-2 mb-2">✅</div>
+                <div class="fw-semibold">Đang hiển thị</div>
+                <div class="fs-4 fw-bold">@all.Count(x => x.TrangThai)</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 bg-secondary text-white h-100">
+            <div class="card-body text-center">
+                <div class="fs-2 mb-2">🕶️</div>
+                <div class="fw-semibold">Đang ẩn</div>
+                <div class="fs-4 fw-bold">@all.Count(x => !x.TrangThai)</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 bg-warning text-dark h-100">
+            <div class="card-body text-center">
+                <div class="fs-2 mb-2">👟</div>
+                <div class="fw-semibold">Tổng giày áp dụng</div>
+                <div class="fs-4 fw-bold">@all.Sum(x => x.GiayDotGiamGias?.Count ?? 0)</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Danh sách -->
+<div class="card shadow-sm p-4">
+
+    <div class="d-flex justify-content-between mb-3">
+
+        <!-- SEARCH -->
+        <div class="input-group w-50">
+            <span class="input-group-text">🔍</span>
+
+            <input class="form-control"
+                   placeholder="Tìm theo tên đợt, tên giày, màu, size, ID..."
+                   @bind="searchTerm"
+                   @bind:event="oninput" />
+        </div>
+
+        <NavLink class="btn btn-primary mb-3" href="/ThemDotGiamGia">
+            <i class="bi bi-plus-circle"></i> Thêm đợt giảm giá
+        </NavLink>
+    </div>
+
+    <table class="table table-bordered table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>#</th>
+                <th>Tên đợt</th>
+                <th>Thời gian</th>
+                <th>Giảm (%)</th>
+                <th>Trạng thái</th>
+                <th>Giày áp dụng</th>
+                <th>Hành động</th>
+            </tr>
+        </thead>
+
+        <tbody>
+
+            @if (PagedList.Count == 0)
+            {
+                <tr>
+                    <td colspan="7" class="text-center text-muted">
+                        Không có dữ liệu.
+                    </td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var (item, index) in PagedList.Select((x, i) => (x, i)))
+                {
+                    <tr>
+
+                        <td>
+                            @((CurrentPage - 1) * PageSize + index + 1)
+                        </td>
+
+                        <td>
+                            @item.TenGiamGia
+                        </td>
+
+                        <td>
+                            @item.NgayBatDau.ToString("dd/MM/yyyy")
+                            -
+                            @item.NgayKetThuc.ToString("dd/MM/yyyy")
+                        </td>
+
+                        <td>
+                            @item.PhanTramKhuyenMai %
+                        </td>
+
+                        <td>
+                            <span class="badge bg-@(item.TrangThai ? "success" : "secondary")">
+                                @(item.TrangThai ? "Hiển thị" : "Ẩn")
+                            </span>
+                        </td>
+
+                        <td>
+                            @(item.GiayDotGiamGias?.Count ?? 0)
+                        </td>
+
+
+
+                        <td>
+
+                            <button class="btn btn-sm btn-outline-warning me-2"
+                                    @onclick='@(() => Navigation.NavigateTo($"/ThemDotGiamGia/{item.GiamGiaId}"))'>
+                                ✏️ Sửa
+                            </button>
+
+                            <button class="btn btn-sm btn-outline-success"
+                                    @onclick='@(() => Navigation.NavigateTo($"/ThemDotGiamGia/{item.GiamGiaId}"))'>
+                                🔗 Gán giày
+                            </button>
+
+                        </td>
+
+                    </tr>
+                }
+            }
+
+        </tbody>
+    </table>
+
+    <!-- PHÂN TRANG -->
+    <div class="d-flex justify-content-between mt-3">
+
+        <button class="btn btn-outline-secondary"
+                @onclick="PreviousPage"
+                disabled="@(CurrentPage == 1)">
+            ⬅️ Trước
+        </button>
+
+        <span class="fw-bold">
+            Trang @CurrentPage
+        </span>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="NextPage"
+                disabled="@(CurrentPage* PageSize >= Filtered.Count)">
+            Tiếp ➡️
+        </button>
+
+    </div>
+
+</div>
+
+@code {
+
+    private List<GiamGia> all = new();
+
+    private string searchTerm = "";
+
+    private int CurrentPage = 1;
+
+    private int PageSize = 10;
+
+    // SEARCH
+    private List<GiamGia> Filtered => all
+    .Where(x =>
+
+        string.IsNullOrWhiteSpace(searchTerm)
+
+        // Tìm theo tên đợt
+        || x.TenGiamGia.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
+
+        // Tìm theo sản phẩm
+        || x.GiayDotGiamGias.Any(g =>
+
+            // ID chi tiết giày
+            (g.GiayChiTiet?.GiayChiTietId.ToString()
+                .Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+
+            // Tên giày
+            || (g.GiayChiTiet?.Giay?.TenGiay?
+                .Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+
+           // Màu sắc
+           || (g.GiayChiTiet?.MauSac?.MauSacId.ToString()
+            .Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+
+            // Size
+            || (g.GiayChiTiet?.KichCo?.KichCoId.ToString()
+                .Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ?? false)
+        )
+    )
+    .ToList();
+
+    private List<GiamGia> PagedList => Filtered
+        .Skip((CurrentPage - 1) * PageSize)
+        .Take(PageSize)
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        all = (await GiamGiaService.GetAllAsync()).ToList();
+    }
+
+    private void PreviousPage()
+    {
+        if (CurrentPage > 1)
+            CurrentPage--;
+    }
+
+    private void NextPage()
+    {
+        if (CurrentPage * PageSize < Filtered.Count)
+            CurrentPage++;
+    }
+
+}

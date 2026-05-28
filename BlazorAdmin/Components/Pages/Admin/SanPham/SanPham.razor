@@ -1,0 +1,333 @@
+﻿@page "/sanpham"
+@rendermode InteractiveServer
+@using API.Models.DTO
+@inject IJSRuntime JS
+@inject IGiayService GiayService
+@inject IGiayChiTietService GiayChiTietService
+@inject NavigationManager NavigationManager
+<!-- Thống kê -->
+<div class="row row-cols-2 row-cols-md-3 row-cols-lg-5 g-3 mb-4">
+    <div class="col">
+        <div class="bg-light border rounded p-3 shadow-sm text-center">
+            <h6 class="text-muted">Tổng số sản phẩm</h6>
+            <h4>@ListSanPham.Count</h4>
+        </div>
+    </div>
+    <div class="col">
+        <div class="bg-light border rounded p-3 shadow-sm text-center">
+            <h6 class="text-muted">Đang bán</h6>
+            <h4>@ListSanPham.Count(x => x.TrangThai)</h4>
+        </div>
+    </div>
+    <div class="col">
+        <div class="bg-light border rounded p-3 shadow-sm text-center">
+            <h6 class="text-muted">Ngừng bán</h6>
+            <h4>@ListSanPham.Count(x => !x.TrangThai)</h4>
+        </div>
+    </div>
+    <div class="col">
+        <div class="bg-light border rounded p-3 shadow-sm text-center">
+            <h6 class="text-muted">Tổng số biến thể</h6>
+            <h4>@soLuongBienThe</h4>
+        </div>
+    </div>
+    <div class="col">
+        <div class="bg-light border rounded p-3 shadow-sm text-center">
+            <h6 class="text-muted">Tổng tồn kho</h6>
+            <h4>@tongSoLuongCon</h4>
+        </div>
+    </div>
+</div>
+
+<h4 class="fw-bold mb-4"><i class="bi bi-box-seam me-2"></i>Quản lý sản phẩm giày</h4>
+
+<div class="card shadow-sm p-4">
+    <!-- Tìm kiếm & Lọc -->
+    <div class="row g-3 mb-4 align-items-center">
+        <div class="col-md-4">
+            <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input class="form-control" placeholder="Tìm kiếm tên giày..."
+                       @bind="searchText" @bind:event="oninput" />
+            </div>
+        </div>
+
+        <div class="col-md-5">
+            <div class="btn-group" role="group">
+                <input type="radio" class="btn-check" id="all" name="status" checked="@(!statusFilter.HasValue)" @onchange="() => statusFilter = null" />
+                <label class="btn btn-outline-secondary" for="all">Tất cả</label>
+
+                <input type="radio" class="btn-check" id="active" name="status" checked="@(statusFilter == true)" @onchange="() => statusFilter = true" />
+                <label class="btn btn-outline-secondary" for="active">Đang bán</label>
+
+                <input type="radio" class="btn-check" id="inactive" name="status" checked="@(statusFilter == false)" @onchange="() => statusFilter = false" />
+                <label class="btn btn-outline-secondary" for="inactive">Ngừng bán</label>
+            </div>
+        </div>
+
+        <div class="col-md-3 text-end">
+            <NavLink class="btn btn-primary" href="/AddGiay"><i class="bi bi-plus-lg me-2"></i>Thêm sản phẩm</NavLink>
+        </div>
+    </div>
+
+    <!-- Bảng sản phẩm -->
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th class="text-center" style="width: 60px;">STT</th>
+                    <th>Tên giày</th>
+                    <th>Thương hiệu</th>
+                    <th>Chất liệu</th>
+                    <th>Thể loại</th>
+                    <th>Đế giày</th>
+                    <th>Kiểu dáng</th>
+                    <th class="text-center">Biến thể</th>
+                    <th class="text-center">Tồn kho</th>
+                    <th>Ngày thêm</th>
+                    <th class="text-center">Trạng thái</th>
+                    <th class="text-center" style="width: 150px;">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (isLoading)
+                {
+                    <tr><td colspan="10" class="text-center py-4"><div class="spinner-border text-primary"></div></td></tr>
+                }
+                else if (pagedList.Any())
+                {
+                    @foreach (var item in pagedList)
+                    {
+                        <tr>
+                            <td class="text-center">@item.STT</td>
+                            <td>@item.TenGiay</td>
+                            <td>@item.TenThuongHieu</td>
+                            <td>@item.TenChatLieu</td>
+                            <td>@item.TenTheLoaiGiay</td>
+                            <td>@item.TenDeGiay</td>
+                            <td>@item.TenKieuDang</td>
+                            <td class="text-center">@variantCountByGiay.GetValueOrDefault(item.GiayId)</td>
+                            <td class="text-center">@stockByGiay.GetValueOrDefault(item.GiayId)</td>
+                            <td>@item.NgayTao.ToString("dd/MM/yyyy")</td>
+                            <td class="text-center">
+                                <span class="badge @(item.TrangThai ? "bg-success text-light" : "bg-secondary")">
+                                    @(item.TrangThai ? "Đang bán" : "Ngừng bán")
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-primary" @onclick="() => ViewProduct(item.GiayId)"><i class="bi bi-eye"></i></button>
+                                    <button class="btn btn-outline-warning" @onclick="() => EditProduct(item.GiayId)"><i class="bi bi-pencil"></i></button>
+                                <button class="btn btn-outline-danger" @onclick="() => DeleteProduct(item)"><i class="bi bi-trash"></i></button> 
+                                    <button class="btn btn-outline-info" @onclick="() => ToggleTrangThai(item)"><i class="bi bi-shuffle"></i></button>
+
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr><td colspan="12" class="text-center text-muted py-4">Không tìm thấy sản phẩm nào.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Phân trang -->
+    @if (totalPages > 1)
+    {
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <div class="text-muted">Hiển thị <b>@pagedList.Count</b> trong <b>@ListSanPham.Count</b> sản phẩm</div>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => ChangePage(currentPage - 1)">&laquo;</button>
+                    </li>
+                    @for (int i = 1; i <= totalPages; i++)
+                    {
+                        <li class="page-item @(currentPage == i ? "active" : "")">
+                            <button class="page-link" @onclick="() => ChangePage(i)">@i</button>
+                        </li>
+                    }
+                    <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
+                        <button class="page-link" @onclick="() => ChangePage(currentPage + 1)">&raquo;</button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
+</div>
+
+@code {
+    private string searchText = "";
+    private bool? statusFilter = null;
+    private List<GiayDTO> ListSanPham = new();
+    private bool isLoading = true;
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int soLuongBienThe = 0;
+    private int tongSoLuongCon = 0;
+    // ngay dưới tongSoLuongCon
+    private bool isAutoSyncing = false;
+
+    private Dictionary<Guid, int> variantCountByGiay = new();
+    private Dictionary<Guid, int> stockByGiay = new();
+
+    private List<GiayDTO> FilteredList => ListSanPham
+        .Where(x => string.IsNullOrWhiteSpace(searchText) || x.TenGiay.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+        .Where(x => !statusFilter.HasValue || x.TrangThai == statusFilter.Value)
+        .ToList();
+
+    private List<GiayDTO> pagedList => FilteredList
+        .Skip((currentPage - 1) * pageSize)
+        .Take(pageSize)
+        .ToList();
+
+    private int totalPages => (int)Math.Ceiling((double)FilteredList.Count / pageSize);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            var result = await GiayService.GetAllAsync();
+            int stt = 1;
+            ListSanPham = result.Select(x => { x.STT = stt++; return x; }).ToList();
+
+            // Lấy TẤT CẢ biến thể
+            var bienTheList = await GiayChiTietService.GetAllAsync();
+
+            // Thống kê toàn cục
+            soLuongBienThe = bienTheList.Count;
+            tongSoLuongCon = bienTheList.Sum(x => x.SoLuongCon);
+
+            // Gom nhóm theo GiayId
+            variantCountByGiay = bienTheList
+                .GroupBy(bt => bt.GiayId)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            stockByGiay = bienTheList
+                .GroupBy(bt => bt.GiayId)
+                .ToDictionary(g => g.Key, g => g.Sum(x => x.SoLuongCon));
+
+            if (!isAutoSyncing)
+            {
+                isAutoSyncing = true;
+
+                foreach (var item in ListSanPham)
+                {
+                    // Lấy tất cả biến thể của sản phẩm
+                    var bienTheCuaGiay = bienTheList
+                        .Where(x => x.GiayId == item.GiayId)
+                        .ToList();
+
+                    // Có biến thể nào còn hoạt động không
+                    bool conBienTheDangBan = bienTheCuaGiay
+                        .Any(x => x.TrangThai);
+
+                    // Tổng tồn kho
+                    int tonKho = bienTheCuaGiay.Sum(x => x.SoLuongCon);
+
+                    // Nếu hết hàng => tự ngừng bán
+                    if (tonKho <= 0 && item.TrangThai)
+                    {
+                        item.TrangThai = false;
+                        await GiayService.UpdateAsync(item);
+                    }
+
+                    // Nếu tất cả biến thể đều ngừng hoạt động
+                    // => sản phẩm chính cũng ngừng
+                    if (!conBienTheDangBan && item.TrangThai)
+                    {
+                        item.TrangThai = false;
+                        await GiayService.UpdateAsync(item);
+                    }
+                }
+
+                isAutoSyncing = false;
+            }
+
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+
+    private void ViewProduct(Guid GiayId)
+    {
+        NavigationManager.NavigateTo($"/Giay/{GiayId.ToString()}");
+    }
+
+    private void EditProduct(Guid id)
+    {
+        NavigationManager.NavigateTo($"/editgiay/{id}");
+    }
+
+    private async Task DeleteProduct(GiayDTO product)
+    {
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", $"Bạn có chắc chắn muốn xoá '{product.TenGiay}'?");
+        if (confirmed)
+        {
+            try
+            {
+                await GiayService.DeleteAsync(product.GiayId);
+                await JS.InvokeVoidAsync("alert", "Xoá thành công.");
+                await LoadData();
+            }
+            catch
+            {
+                await JS.InvokeVoidAsync("alert", "Xoá thất bại.");
+            }
+        }
+    }
+
+    private void ChangePage(int page)
+    {
+        currentPage = page;
+    }
+    private async Task ToggleTrangThai(GiayDTO giay)
+    {
+        // Lấy tồn kho của giày
+        int tonKho = stockByGiay.GetValueOrDefault(giay.GiayId);
+
+        // Nếu tồn kho = 0 và đang muốn bật trạng thái lại => không cho phép
+        if (tonKho == 0 && !giay.TrangThai)
+        {
+            await JS.InvokeVoidAsync("alert", "Không thể chuyển sang Đang bán vì sản phẩm đã hết hàng.");
+            return;
+        }
+
+        // Nếu tồn kho = 0 thì luôn set là Ngừng bán
+        if (tonKho == 0)
+        {
+            if (giay.TrangThai) // chỉ cập nhật nếu trạng thái chưa đúng
+            {
+                giay.TrangThai = false;
+                await GiayService.UpdateAsync(giay);
+                await JS.InvokeVoidAsync("alert", "Tự động chuyển sang Ngừng bán vì tồn kho bằng 0.");
+            }
+            return;
+        }
+
+        // Ngược lại: tồn kho > 0 thì cho phép đổi trạng thái
+        giay.TrangThai = !giay.TrangThai;
+        try
+        {
+            await GiayService.UpdateAsync(giay);
+            await LoadData();
+        }
+        catch
+        {
+            await JS.InvokeVoidAsync("alert", "Đổi trạng thái thất bại.");
+        }
+    }
+
+
+}

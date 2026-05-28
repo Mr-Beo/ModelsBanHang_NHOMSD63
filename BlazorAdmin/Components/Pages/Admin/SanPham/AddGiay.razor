@@ -1,0 +1,908 @@
+﻿@page "/AddGiay"
+@rendermode InteractiveServer
+
+@using System.Text
+@using System.Linq
+@using API.IService
+@using API.Models.DTO
+@using Microsoft.AspNetCore.Components.Forms
+@inject IAnhService _anhService
+@inject IMauSacService _mauSacService
+@inject IGiayChiTietService _giayChiTietService
+@inject IGiayService _giayService
+@inject IThuongHieuService _thuongHieuService
+@inject IChatLieuService _chatLieuService
+@inject IKichCoService _kichCoService
+@inject IDeGiayService _deGiayService
+@inject ITheLoaiGiayService _theLoaiGiayService
+@inject IKieuDangService _kieuDangService
+@inject IJSRuntime _jsRuntime
+@inject NavigationManager _navigationManager
+
+<div class="container-fluid px-4 py-3">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3>Thêm sản phẩm mới</h3>
+
+        <button class="btn btn-outline-secondary"
+                @onclick="HuyBo">
+            Quay lại
+        </button>
+    </div>
+
+    @if (_isLoading)
+    {
+        <div class="text-center my-5">
+            <div class="spinner-border text-primary"></div>
+        </div>
+    }
+    else
+    {
+        <EditForm Model="_giayModel"
+                  OnValidSubmit="HandleLuuToanBo">
+
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger mb-3" />
+
+            <!-- ==================== THÔNG TIN ==================== -->
+
+            <div class="card shadow-sm mb-4">
+
+                <div class="card-header bg-primary text-white">
+                    Thông tin chung
+                </div>
+
+                <div class="card-body">
+
+                    <div class="row g-3">
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">
+                                Tên giày
+                            </label>
+
+                            <InputText @bind-Value="_giayModel.TenGiay"
+                                       class="form-control" />
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">
+                                Thương hiệu
+                            </label>
+
+                            <InputSelect @bind-Value="_giayModel.ThuongHieuId"
+                                         class="form-select">
+
+                                <option value="">-- chọn --</option>
+
+                                @foreach (var x in _thuongHieuOptions.OrderBy(x => x.TenThuongHieu))
+                                {
+                                    <option value="@x.ThuongHieuId">
+                                        @x.TenThuongHieu
+                                    </option>
+                                }
+
+                            </InputSelect>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">
+                                Chất liệu
+                            </label>
+
+                            <InputSelect @bind-Value="_giayModel.ChatLieuId"
+                                         class="form-select">
+
+                                <option value="">-- chọn --</option>
+
+                                @foreach (var x in _chatLieuOptions.OrderBy(x => x.TenChatLieu))
+                                {
+                                    <option value="@x.ChatLieuId">
+                                        @x.TenChatLieu
+                                    </option>
+                                }
+
+                            </InputSelect>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">
+                                Kiểu dáng
+                            </label>
+
+                            <InputSelect @bind-Value="_giayModel.KieuDangId"
+                                         class="form-select">
+
+                                <option value="">-- chọn --</option>
+
+                                @foreach (var x in _kieuDangOptions.OrderBy(x => x.TenKieuDang))
+                                {
+                                    <option value="@x.KieuDangId">
+                                        @x.TenKieuDang
+                                    </option>
+                                }
+
+                            </InputSelect>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">
+                                Đế giày
+                            </label>
+
+                            <InputSelect @bind-Value="_giayModel.DeGiayId"
+                                         class="form-select">
+
+                                <option value="">-- chọn --</option>
+
+                                @foreach (var x in _deGiayOptions.OrderBy(x => x.TenDeGiay))
+                                {
+                                    <option value="@x.DeGiayId">
+                                        @x.TenDeGiay
+                                    </option>
+                                }
+
+                            </InputSelect>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">
+                                Thể loại
+                            </label>
+
+                            <InputSelect @bind-Value="_giayModel.TheLoaiGiayId"
+                                         class="form-select">
+
+                                <option value="">-- chọn --</option>
+
+                                @foreach (var x in _theLoaiOptions.OrderBy(x => x.TenTheLoai))
+                                {
+                                    <option value="@x.TheLoaiGiayId">
+                                        @x.TenTheLoai
+                                    </option>
+                                }
+
+                            </InputSelect>
+                        </div>
+
+                        <div class="col-md-6">
+
+                            <label class="form-label fw-bold">
+                                Trạng thái
+                            </label>
+
+                            <div class="form-check form-switch mt-2">
+
+                                <input type="checkbox"
+                                       class="form-check-input"
+                                       @bind="_giayModel.TrangThai" />
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- ==================== BIẾN THỂ ==================== -->
+
+            <div class="card shadow-sm">
+
+                <div class="card-header bg-primary text-white">
+                    Biến thể sản phẩm
+                </div>
+
+                <div class="card-body">
+
+                    <!-- CHỌN MÀU -->
+
+                    <div class="mb-4">
+
+                        <h6 class="fw-bold mb-3">
+                            Chọn màu sắc
+                        </h6>
+
+                        <div class="d-flex flex-wrap gap-2">
+
+                            @foreach (var mau in _danhSachMauCoBan.OrderBy(x => x.TenMau))
+                            {
+                                <div class="form-check">
+
+                                    <input class="form-check-input"
+                                           type="checkbox"
+                                           checked="@_danhSachChiTiet.Any(x => x.MauSacId == mau.MauSacId)"
+                                           @onchange="() => ToggleMauSac(mau)" />
+
+                                    <label class="form-check-label">
+                                        @mau.TenMau
+                                    </label>
+
+                                </div>
+                            }
+
+                        </div>
+
+                    </div>
+
+                    @if (_danhSachChiTiet.Count == 0)
+                    {
+                        <div class="alert alert-warning">
+                            Vui lòng chọn màu sắc
+                        </div>
+                    }
+
+                    <div class="accordion">
+
+                        @foreach (var (mau, index) in _danhSachChiTiet.Select((m, i) => (m, i)))
+                        {
+                            <div class="accordion-item mb-3">
+
+                                <h2 class="accordion-header">
+
+                                    <button class="accordion-button @(index > 0 ? "collapsed" : "")"
+                                            type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#collapse_@index">
+
+                                        @mau.TenMau
+
+                                    </button>
+
+                                </h2>
+
+                                <div id="collapse_@index"
+                                     class="accordion-collapse collapse @(index == 0 ? "show" : "")">
+
+                                    <div class="accordion-body">
+
+                                        <!-- ẢNH -->
+
+                                        <div class="mb-4">
+
+                                            <label class="form-label fw-bold">
+                                                Ảnh màu
+                                            </label>
+
+                                            <InputFile OnChange="@(e => HandleUploadAnhTheoMau(e, mau))"
+                                                       accept="image/*"
+                                                       class="form-control" />
+
+                                            @if (!string.IsNullOrEmpty(mau.AnhDaTai))
+                                            {
+                                                <div class="mt-2">
+
+                                                    <img src="@mau.AnhDaTai"
+                                                         class="img-thumbnail"
+                                                         style="height:100px" />
+
+                                                </div>
+                                            }
+
+                                        </div>
+
+                                        <!-- SIZE -->
+                                        @foreach (var size in mau.ChiTietSizes)
+                                        {
+                                            <div class="row g-3 mb-3 align-items-end">
+
+                                                <div class="col-md-3">
+
+                                                    <label class="form-label fw-bold">
+                                                        Kích cỡ
+                                                    </label>
+
+                                                    <InputSelect @bind-Value="size.KichCoId"
+                                                                 class="form-select">
+
+                                                        <option value="">-- chọn size --</option>
+
+                                                        @foreach (var kc in _danhSachKichCo.OrderBy(x => x.size))
+                                                        {
+                                                            <option value="@kc.KichCoId">
+                                                                @kc.size
+                                                            </option>
+                                                        }
+
+                                                    </InputSelect>
+
+                                                </div>
+
+                                                <div class="col-md-3">
+
+                                                    <label class="form-label fw-bold">
+                                                        Giá
+                                                    </label>
+
+                                                    <InputNumber @bind-Value="size.Gia"
+                                                                 class="form-control" />
+
+                                                </div>
+
+                                                <div class="col-md-3">
+
+                                                    <label class="form-label fw-bold">
+                                                        Số lượng
+                                                    </label>
+
+                                                    <InputNumber @bind-Value="size.SoLuong"
+                                                                 class="form-control" />
+
+                                                </div>
+
+                                                <div class="col-md-2">
+
+                                                    <button type="button"
+                                                            class="btn btn-danger w-100"
+                                                            @onclick="() => RemoveSize(mau, size)">
+
+                                                        Xóa
+
+                                                    </button>
+
+                                                </div>
+
+                                            </div>
+                                        }
+
+                                        <button type="button"
+                                                class="btn btn-outline-primary"
+                                                @onclick="() => AddSize(mau)">
+
+                                            + Thêm size
+
+                                        </button>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+                        }
+
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- ==================== BUTTON ==================== -->
+
+            <div class="mt-4 d-flex justify-content-end gap-2">
+
+                <button type="button"
+                        class="btn btn-secondary"
+                        @onclick="HuyBo">
+
+                    Hủy
+
+                </button>
+
+                <button type="submit"
+                        class="btn btn-success"
+                        disabled="@_isSubmitting">
+
+                    @if (_isSubmitting)
+                    {
+                        <span class="spinner-border spinner-border-sm"></span>
+                        <span class="ms-2">Đang lưu...</span>
+                    }
+                    else
+                    {
+                        <span>Lưu sản phẩm</span>
+                    }
+
+                </button>
+
+            </div>
+
+        </EditForm>
+    }
+
+</div>
+
+@code {
+
+
+
+    // ================= MODEL =================
+
+    private GiayDTO _giayModel = new()
+    {
+        TrangThai = true,
+        NgayTao = DateTime.Now
+    };
+
+    // ================= LIST =================
+
+    private List<ThuongHieu> _thuongHieuOptions = new();
+    private List<ChatLieu> _chatLieuOptions = new();
+    private List<KieuDangDTO> _kieuDangOptions = new();
+    private List<TheLoaiGiayDTO> _theLoaiOptions = new();
+    private List<DeGiayDTO> _deGiayOptions = new();
+
+    private List<MauSacDTO> _danhSachMauCoBan = new();
+    private List<KichCoDTO> _danhSachKichCo = new();
+
+    private List<GiayChiTietTheoMauDTO> _danhSachChiTiet = new();
+
+    // ================= STATE =================
+
+    private bool _isLoading = true;
+    private bool _isSubmitting = false;
+
+    // ================= INIT =================
+
+    protected override async Task OnInitializedAsync()
+    {
+        _thuongHieuOptions = (await _thuongHieuService.GetAllAsync()).ToList();
+        _chatLieuOptions = (await _chatLieuService.GetAllAsync()).ToList();
+        _kieuDangOptions = (await _kieuDangService.GetAllAsync()).ToList();
+        _theLoaiOptions = (await _theLoaiGiayService.GetAllAsync()).ToList();
+        _deGiayOptions = (await _deGiayService.GetAllAsync()).ToList();
+
+        _danhSachMauCoBan = (await _mauSacService.GetAllAsync()).ToList();
+        _danhSachKichCo = (await _kichCoService.GetAllAsync()).ToList();
+
+        _isLoading = false;
+    }
+
+    // ================= MÀU =================
+
+    private void ToggleMauSac(MauSacDTO mau)
+    {
+        var ex = _danhSachChiTiet.FirstOrDefault(x => x.MauSacId == mau.MauSacId);
+
+        if (ex != null)
+        {
+            _danhSachChiTiet.Remove(ex);
+        }
+        else
+        {
+            _danhSachChiTiet.Add(new GiayChiTietTheoMauDTO
+            {
+                MauSacId = mau.MauSacId,
+                TenMau = mau.TenMau
+            });
+        }
+    }
+
+    // ================= SIZE =================
+
+    private void AddSize(GiayChiTietTheoMauDTO mau)
+    {
+        mau.ChiTietSizes.Add(new GiayChiTietSizeDTO
+        {
+            Gia = 100000,
+            SoLuong = 1
+        });
+    }
+
+    private void RemoveSize(GiayChiTietTheoMauDTO mau, GiayChiTietSizeDTO size)
+    {
+        mau.ChiTietSizes.Remove(size);
+    }
+
+    // ================= ẢNH =================
+
+    private async Task HandleUploadAnhTheoMau(
+        InputFileChangeEventArgs e,
+        GiayChiTietTheoMauDTO mau)
+    {
+        try
+        {
+            var file = e.File;
+
+            if (file.Size > 5 * 1024 * 1024)
+            {
+                await ShowError("Ảnh tối đa 5MB");
+                return;
+            }
+
+            var resized = await file.RequestImageFileAsync(
+                "image/jpeg",
+                600,
+                600);
+
+            using var stream = resized.OpenReadStream(5 * 1024 * 1024);
+
+            var bytes = new byte[stream.Length];
+
+            await stream.ReadAsync(bytes);
+
+            mau.AnhDaTai =
+                $"data:image/jpeg;base64,{Convert.ToBase64String(bytes)}";
+        }
+        catch (Exception ex)
+        {
+            await ShowError(ex.Message);
+        }
+    }
+
+    // ================= SAVE =================
+
+    private async Task HandleLuuToanBo()
+    {
+        try
+        {
+            _isSubmitting = true;
+
+            // VALIDATE
+
+            if (!ValidateForm())
+            {
+                return;
+            }
+
+            // TẠO GIÀY
+
+            var allGiays = await _giayService.GetAllAsync();
+
+            var giay = allGiays.FirstOrDefault(x =>
+                x.TenGiay.Trim().ToLower() == _giayModel.TenGiay.Trim().ToLower()
+                && x.ThuongHieuId == _giayModel.ThuongHieuId
+                && x.ChatLieuId == _giayModel.ChatLieuId
+                && x.KieuDangId == _giayModel.KieuDangId
+                && x.DeGiayId == _giayModel.DeGiayId
+                && x.TheLoaiGiayId == _giayModel.TheLoaiGiayId
+            );
+
+            if (giay == null)
+            {
+                giay = await _giayService.CreateAsync(_giayModel);
+
+                if (giay == null)
+                {
+
+                    await ShowError("Không thể tạo giày");
+
+                    return;
+
+                }
+            }
+
+            // LIST BIẾN THỂ
+
+            var list = new List<GiayChiTietDTO>();
+            var allChiTiet = await _giayChiTietService.GetAllAsync();
+            foreach (var mau in _danhSachChiTiet)
+            {
+                foreach (var size in mau.ChiTietSizes)
+                {
+                    var existing = allChiTiet.FirstOrDefault(x =>
+                        x.GiayId == giay.GiayId &&
+                        x.MauSacId == mau.MauSacId &&
+                        x.KichCoId == size.KichCoId);
+
+                    if (existing != null)
+                    {
+                        // nếu khác giá thì hỏi có cập nhật không
+                        if (existing.Gia != (float)size.Gia)
+                        {
+                            var confirm = await _jsRuntime.InvokeAsync<bool>(
+                                "confirm",
+                                $"Biến thể màu {mau.TenMau} - size " +
+                                $"{_danhSachKichCo.FirstOrDefault(x => x.KichCoId == size.KichCoId)?.size} " +
+                                $"đã tồn tại với giá {existing.Gia:N0}đ.\n" +
+                                $"Bạn có muốn cập nhật sang giá mới {(float)size.Gia:N0}đ không?"
+                            );
+
+                            // nếu không đồng ý => chặn thêm
+                            if (!confirm)
+                            {
+                                await ShowError(
+                                    $"Đã hủy thêm biến thể màu {mau.TenMau}"
+                                );
+
+                                return;
+                            }
+
+                            // đồng ý => cập nhật giá
+                            existing.Gia = (float)size.Gia;
+                        }
+
+                        // cộng dồn số lượng
+                        existing.SoLuongCon += size.SoLuong;
+
+                        existing.NgaySua = DateTime.Now;
+
+                        await _giayChiTietService.UpdateAsync(
+                            existing.GiayChiTietId,
+                            existing
+                        );
+                    }
+                    else
+                    {
+                        list.Add(new GiayChiTietDTO
+                        {
+                            GiayId = giay.GiayId,
+                            MauSacId = mau.MauSacId,
+                            KichCoId = size.KichCoId,
+                            Gia = (float)size.Gia,
+                            SoLuongCon = size.SoLuong,
+                            AnhGiay = mau.AnhDaTai,
+                            TrangThai = true,
+                            NgayTao = DateTime.Now,
+                            NgaySua = DateTime.Now
+                        });
+                    }
+                }
+            }
+            if (list.Any())
+            {
+                // tạo biến thể
+                var createdVariants =
+                    await _giayChiTietService.CreateMultipleAsync(list);
+
+                // upload ảnh
+                var uploadTasks = new List<Task>();
+
+                foreach (var mau in _danhSachChiTiet)
+                {
+                    if (string.IsNullOrEmpty(mau.AnhDaTai))
+                        continue;
+
+                    foreach (var size in mau.ChiTietSizes)
+                    {
+                        var bienThe = createdVariants.FirstOrDefault(x =>
+                            x.MauSacId == mau.MauSacId &&
+                            x.KichCoId == size.KichCoId);
+
+                        if (bienThe == null)
+                            continue;
+
+                        uploadTasks.Add(Task.Run(async () =>
+                        {
+                            var anhUrl = await UploadImageToServerAsync(
+                                mau.AnhDaTai,
+                                bienThe.GiayChiTietId);
+
+                            if (!string.IsNullOrEmpty(anhUrl))
+                            {
+                                bienThe.AnhGiay = anhUrl;
+
+                                await _giayChiTietService.UpdateAsync(
+                                    bienThe.GiayChiTietId,
+                                    bienThe);
+                            }
+                        }));
+                    }
+                }
+
+                if (uploadTasks.Any())
+                {
+                    await Task.WhenAll(uploadTasks);
+                }
+            }
+            // await _giayChiTietService.CreateMultipleAsync(list);
+
+            await ShowSuccess("Thêm sản phẩm thành công");
+
+            _navigationManager.NavigateTo("/SanPham");
+        }
+        catch (Exception ex)
+        {
+            await ShowError(ex.Message);
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    // ================= VALIDATE =================
+
+    private bool ValidateForm()
+    {
+        if (string.IsNullOrWhiteSpace(_giayModel.TenGiay))
+        {
+            ShowError("Tên giày không được trống");
+            return false;
+        }
+
+        if (_giayModel.ThuongHieuId == null)
+        {
+            ShowError("Chọn thương hiệu");
+            return false;
+        }
+
+        if (_giayModel.ChatLieuId == null)
+        {
+            ShowError("Chọn chất liệu");
+            return false;
+        }
+
+        if (_giayModel.KieuDangId == null)
+        {
+            ShowError("Chọn kiểu dáng");
+            return false;
+        }
+
+        if (_giayModel.DeGiayId == null)
+        {
+            ShowError("Chọn đế giày");
+            return false;
+        }
+
+        if (_giayModel.TheLoaiGiayId == null)
+        {
+            ShowError("Chọn thể loại");
+            return false;
+        }
+
+        if (_danhSachChiTiet.Count == 0)
+        {
+            ShowError("Chọn ít nhất 1 màu");
+            return false;
+        }
+
+        foreach (var mau in _danhSachChiTiet)
+        {
+            if (mau.ChiTietSizes.Count == 0)
+            {
+                ShowError($"Màu {mau.TenMau} chưa có size");
+                return false;
+            }
+            // CHECK TRÙNG SIZE
+            var trungSize = mau.ChiTietSizes
+                .Where(x => x.KichCoId != Guid.Empty)
+                .GroupBy(x => x.KichCoId)
+                .Any(g => g.Count() > 1);
+
+            if (trungSize)
+            {
+                ShowError($"Màu {mau.TenMau} đang bị trùng size");
+                return false;
+            }
+
+            foreach (var size in mau.ChiTietSizes)
+            {
+                if (size.KichCoId == Guid.Empty)
+                {
+                    ShowError($"Màu {mau.TenMau} chưa chọn size");
+                    return false;
+                }
+
+                if (size.Gia <= 0)
+                {
+                    ShowError($"Giá không hợp lệ");
+                    return false;
+                }
+
+                if (size.SoLuong <= 0)
+                {
+                    ShowError($"Số lượng không hợp lệ");
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    // ================= ALERT =================
+
+    private async Task ShowSuccess(string message)
+    {
+        await _jsRuntime.InvokeVoidAsync(
+            "Swal.fire",
+            new
+            {
+                icon = "success",
+                title = "Thành công",
+                text = message
+            });
+    }
+
+    private async Task ShowError(string message)
+    {
+        await _jsRuntime.InvokeVoidAsync(
+            "Swal.fire",
+            new
+            {
+                icon = "error",
+                title = "Lỗi",
+                text = message
+            });
+    }
+
+    // ================= NAVIGATE =================
+
+    private void HuyBo()
+    {
+        _navigationManager.NavigateTo("/SanPham");
+    }
+
+    // ================= DTO =================
+
+    private class GiayChiTietTheoMauDTO
+    {
+        public Guid MauSacId { get; set; }
+
+        public string TenMau { get; set; } = "";
+
+        public string? AnhDaTai { get; set; }
+
+        public List<GiayChiTietSizeDTO> ChiTietSizes { get; set; } = new();
+    }
+
+    private class GiayChiTietSizeDTO
+    {
+        public Guid KichCoId { get; set; }
+
+        public int SoLuong { get; set; }
+
+        public decimal Gia { get; set; }
+    }
+
+    private class BrowserFileFromStream : IBrowserFile
+    {
+        private readonly Stream _stream;
+
+        public BrowserFileFromStream(
+            string name,
+            Stream stream,
+            string contentType,
+            long size)
+        {
+            Name = name;
+            _stream = stream;
+            ContentType = contentType;
+            Size = size;
+            LastModified = DateTimeOffset.Now;
+        }
+
+        public DateTimeOffset LastModified { get; }
+
+        public string Name { get; }
+
+        public long Size { get; }
+
+        public string ContentType { get; }
+
+        public Stream OpenReadStream(long maxAllowedSize = 512000,
+            CancellationToken cancellationToken = default)
+        {
+            return _stream;
+        }
+
+    }
+
+    private async Task<string?> UploadImageToServerAsync(
+    string base64Image,
+    Guid giayChiTietId)
+    {
+        try
+        {
+            var base64Data = base64Image.Split(',')[1];
+
+            var bytes = Convert.FromBase64String(base64Data);
+
+            using var stream = new MemoryStream(bytes);
+
+            var fileName =
+                $"giay_{giayChiTietId}_{Guid.NewGuid()}.jpg";
+
+            var result = await _anhService.UploadAsync(
+                file: new BrowserFileFromStream(
+                    fileName,
+                    stream,
+                    "image/jpeg",
+                    bytes.Length),
+                tenAnh: fileName,
+                giayChiTietId: giayChiTietId
+            );
+
+            return result?.DuongDan;
+        }
+        catch (Exception ex)
+        {
+            await ShowError($"Upload ảnh lỗi: {ex.Message}");
+            return null;
+        }
+    }
+
+
+}

@@ -1,0 +1,143 @@
+﻿@page "/Trahang/{hoaDonId:guid}"
+
+@using API.Models
+@inject IReturnService ReturnService
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
+<div class="container-fluid my-4">
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-dark text-white py-3">
+            <h4 class="mb-0"><i class="bi bi-shield-check me-2"></i>QUẢN LÝ PHÊ DUYỆT TRẢ HÀNG</h4>
+        </div>
+
+        <div class="card-body">
+            @if (IsLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary"></div>
+                </div>
+            }
+            else
+            {
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h5 class="fw-bold">Thông tin hóa đơn: #@hoaDonId.ToString().ToUpper()</h5>
+                        <p class="text-muted">Khách hàng: <strong>@TenKhachHang</strong></p>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <span class="badge @(StatusColor(TrangThaiHD)) p-2">Trạng thái HD: @TrangThaiHD</span>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Ngày yêu cầu</th>
+                                <th>Sản phẩm</th>
+                                <th class="text-center">Số lượng</th>
+                                <th class="text-end">Giá trị hoàn</th>
+                                <th>Lý do khách trả</th>
+                                <th>Trạng thái</th>
+                                <th class="text-center">Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var req in ListYeuCau)
+                            {
+                                <tr>
+                                    <td>@req.NgayYeuCau.ToString("dd/MM/yyyy HH:mm")</td>
+                                    <td>
+                                        <div class="fw-bold">@req.GiayChiTiet.Giay.TenGiay</div>
+                                        <small class="text-muted">ID: @req.GiayChiTietId</small>
+                                    </td>
+                                    <td class="text-center"><span class="badge bg-secondary">@req.SoLuong</span></td>
+                                    <td class="text-end fw-bold">@((req.SoLuong * req.GiaTaiThoiDiemTra).ToString("N0"))₫</td>
+                                    <td><em>"@req.GhiChu"</em></td>
+                                    <td>@RenderStatusBadge(req.TrangThai)</td>
+                                    <td class="text-center">
+                                        @if (req.TrangThai == 1) @* Chờ xác nhận *@
+                                        {
+                                            <div class="btn-group">
+                                                <button class="btn btn-sm btn-success" @onclick="() => Approve(req.Id)">
+                                                    <i class="bi bi-check-circle"></i> Duyệt
+                                                </button>
+                                                <button class="btn btn-sm btn-danger" @onclick="() => Reject(req.Id)">
+                                                    <i class="bi bi-x-circle"></i> Từ chối
+                                                </button>
+                                            </div>
+                                        }
+                                        else if (req.TrangThai == 3)
+                                        {
+                                            <small class="text-danger">Lý do: @req.LyDoTuChoi</small>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public Guid hoaDonId { get; set; }
+    private List<TraHang> ListYeuCau = new();
+    private bool IsLoading = true;
+    private string TenKhachHang = "";
+    private string TrangThaiHD = "";
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        IsLoading = true;
+        // Giả sử service của bạn đã update để lấy danh sách yêu cầu
+        ListYeuCau = await ReturnService.GetYeuCauByHoaDonAsync(hoaDonId);
+
+        var hoaDon = await ReturnService.GetHoaDonByIdAsync(hoaDonId);
+        if (hoaDon != null)
+        {
+            TenKhachHang = hoaDon.khachHang?.HoTen ?? "Khách vãng lai";
+            TrangThaiHD = hoaDon.TrangThai;
+        }
+        IsLoading = false;
+    }
+
+    private async Task Approve(Guid id)
+    {
+        var confirm = await JSRuntime.InvokeAsync<bool>("confirm", "Xác nhận nhập kho và hoàn tiền cho sản phẩm này?");
+        if (confirm)
+        {
+            var result = await ReturnService.XacNhanTraHangAsync(id);
+            if (result) await LoadData();
+        }
+    }
+
+    private async Task Reject(Guid id)
+    {
+        string lyDo = await JSRuntime.InvokeAsync<string>("prompt", "Nhập lý do từ chối:");
+        if (!string.IsNullOrEmpty(lyDo))
+        {
+            var result = await ReturnService.TuChoiTraHangAsync(id, lyDo);
+            if (result) await LoadData();
+        }
+    }
+
+    private string StatusColor(string status) => status switch
+    {
+        "DaTraHet" => "bg-danger",
+        "HoanThanh" => "bg-success",
+        _ => "bg-warning text-dark"
+    };
+
+    private RenderFragment RenderStatusBadge(int status) => status switch
+    {
+        1 => @<span class="badge bg-warning text-dark">Chờ duyệt</span>,
+        2 => @<span class="badge bg-success">Đã duyệt</span>,
+        3 => @<span class="badge bg-danger">Từ chối</span>,
+        _ => @<span class="badge bg-secondary">Không xác định</span>
+    };
+}

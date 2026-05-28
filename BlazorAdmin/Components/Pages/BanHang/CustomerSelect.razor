@@ -1,0 +1,65 @@
+﻿@using Data.Models
+@inject IKhachHangService KhachHangService
+@if (Visible)
+{
+    <div class="customer-select-overlay"></div>
+    <div class="customer-select-box">
+        <h3 style="margin-top: 0; color: #ff9800;">Chọn khách hàng</h3>
+
+        <input type="text" class="customer-search" placeholder="Tìm kiếm khách hàng..." @bind="searchTerm" @bind:event="oninput" />
+
+        <div class="customer-select-list">
+            @foreach (var kh in FilteredCustomers)
+            {
+                <div class="customer-select-item @(kh.TrangThai ? "" : "disabled")" @onclick="() => SelectCustomer(kh)">
+                    <div class="customer-avatar">@kh.HoTen[0]</div>
+                    <div class="customer-details">
+                        <div class="name">@kh.HoTen</div>
+                        <div class="phone">@kh.SoDienThoai</div>
+                        <span class="address-count">Địa chỉ: @(kh.DiaChiKhachHangs?.Count ?? 0)</span>
+                    </div>
+                    <span class="customer-type @(kh.TrangThai ? "active" : "")">
+                        @(kh.TrangThai ? "Đang hoạt động" : "Không hoạt động")
+                    </span>
+                </div>
+            }
+        </div>
+
+        <button class="close-customer-select" @onclick="Close">Đóng</button>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<KhachHang> OnCustomerSelected { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private List<KhachHang> Customers = new();
+    private string searchTerm = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Customers = await KhachHangService.GetAll();
+    }
+
+    private List<KhachHang> FilteredCustomers => Customers
+        .Where(kh => string.IsNullOrWhiteSpace(searchTerm)
+            || kh.HoTen.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
+            || kh.SoDienThoai.Contains(searchTerm))
+        .OrderByDescending(k => k.TrangThai)
+        .ToList();
+
+    private async Task SelectCustomer(KhachHang kh)
+    {
+        if (!kh.TrangThai) return;
+
+        await OnCustomerSelected.InvokeAsync(kh);
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+
+}

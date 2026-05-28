@@ -1,0 +1,172 @@
+﻿@page "/chatlieu"
+@rendermode InteractiveServer
+@inject IChatLieuService ChatLieuService
+<link href="/css/site.css" rel="stylesheet" />
+
+<div class="container mt-5">
+    <h4 class="mb-3">🧵 Quản lý chất liệu</h4>
+
+    <div class="row mb-4 text-center">
+        <div class="col-md-4">
+            <div class="bg-light border rounded p-4 shadow-sm h-100">
+                <h6 class="text-muted">Tổng số chất liệu</h6>
+                <h4>@DanhSachChatLieu.Count</h4>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="bg-light border rounded p-4 shadow-sm h-100">
+                <h6 class="text-muted">chất liệu đang hoạt động</h6>
+                <h4>@DanhSachChatLieu.Count(v => v.TrangThai)</h4>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="bg-light border rounded p-4 shadow-sm h-100">
+                <h6 class="text-muted">chất liệu ngừng hoạt động</h6>
+                <h4>@DanhSachChatLieu.Count(v => !v.TrangThai)</h4>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm p-4">
+        <!-- Tìm kiếm & nút -->
+        <div class="d-flex justify-content-between mb-3">
+            <input type="text" class="form-control w-50" placeholder="🔍 Tìm kiếm chất liệu..." @bind="SearchText" @bind:event="oninput" />
+            <button class="btn btn-outline-primary" @onclick="ShowModal">➕ Thêm chất liệu</button>
+        </div>
+        <!-- Bảng dữ liệu -->
+        <table class="table table-bordered table-hover">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 60px;">STT</th>
+                    <th>Tên chất liệu</th>
+                    <th>Mô tả</th>
+                    <th>Trạng thái</th>
+                    <th style="width: 120px;">Chức năng</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!FilteredChatLieus.Any())
+                {
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">Không tìm thấy chất liệu nào.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var (item, index) in FilteredChatLieus.Select((x, i) => (x, i + 1)))
+                    {
+                        <tr>
+                            <td>@index</td>
+                            <td>@item.TenChatLieu</td>
+                            <td>@item.MoTa</td>
+                            <td>
+                                <span class="badge bg-@(item.TrangThai ? "success" : "secondary")">
+                                    @(item.TrangThai ? "Đang hoạt động" : "Ngừng hoạt động")
+                                </span>
+                            </td>
+                            <td>
+                                <i class="bi bi-pencil-square text-primary" style="cursor: pointer;" title="Sửa" @onclick="() => EditChatLieu(item)"></i>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Component Modal -->
+    <ChatLieuModal IsOpen="@IsModalOpen"
+                   IsEdit="@IsEdit"
+                   @bind-TenChatLieu="@TenChatLieu"
+                   @bind-MoTa="@MoTa"
+                   @bind-TrangThai="@TrangThai"
+                   ExistingNames="@DanhSachChatLieu.Select(x => x.TenChatLieu).ToList()"
+                   OnClose="CloseModal"
+                   OnSaved="HandleSave" />
+</div>
+
+@code {
+    private List<ChatLieu> DanhSachChatLieu = new();
+    private string SearchText = string.Empty;
+
+    private IEnumerable<ChatLieu> FilteredChatLieus =>
+        string.IsNullOrWhiteSpace(SearchText)
+            ? DanhSachChatLieu
+            : DanhSachChatLieu.Where(x =>
+                (x.TenChatLieu ?? "").Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                (x.MoTa ?? "").Contains(SearchText, StringComparison.OrdinalIgnoreCase));
+
+    private bool IsModalOpen = false;
+    private bool IsEdit = false;
+
+    private string TenChatLieu = string.Empty;
+    private string MoTa = string.Empty;
+    private bool TrangThai = true;
+
+    private Guid? EditingId = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        DanhSachChatLieu = await ChatLieuService.GetAllAsync();
+    }
+
+    private void ShowModal()
+    {
+        IsModalOpen = true;
+        IsEdit = false;
+        EditingId = null;
+        TenChatLieu = string.Empty;
+        MoTa = string.Empty;
+        TrangThai = true;
+    }
+
+    private void EditChatLieu(ChatLieu item)
+    {
+        IsModalOpen = true;
+        IsEdit = true;
+        EditingId = item.ChatLieuId;
+        TenChatLieu = item.TenChatLieu;
+        MoTa = item.MoTa;
+        TrangThai = item.TrangThai;
+    }
+
+    private void CloseModal()
+    {
+        IsModalOpen = false;
+    }
+
+    private async Task HandleSave((string Ten, string MoTa, bool TrangThai) result)
+    {
+        if (IsEdit && EditingId.HasValue)
+        {
+            var updated = new ChatLieu
+            {
+                ChatLieuId = EditingId.Value,
+                TenChatLieu = result.Ten,
+                MoTa = result.MoTa,
+                TrangThai = result.TrangThai
+            };
+
+            await ChatLieuService.UpdateAsync(updated);
+        }
+        else
+        {
+            var newItem = new ChatLieu
+            {
+                TenChatLieu = result.Ten,
+                MoTa = result.MoTa,
+                TrangThai = result.TrangThai
+            };
+
+            await ChatLieuService.CreateAsync(newItem);
+        }
+
+        await LoadDataAsync();
+        CloseModal();
+    }
+}

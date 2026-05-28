@@ -1,0 +1,151 @@
+﻿@page "/"
+@using System.ComponentModel.DataAnnotations
+@inject ITaiKhoanService taiKhoanService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@using API.Models.DTO
+@using BlazorAdmin.Service.IService
+<link href="css/Login.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+
+<PageTitle>Login</PageTitle>
+<div class="signup-container">
+    <EditForm Model="Input" OnValidSubmit="LoginUserAsync"
+              FormName="login" >
+        <DataAnnotationsValidator />
+        <h2 style="text-align:center;">Login</h2>
+
+
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <div class="alert alert-danger mt-3" role="alert">
+                @ErrorMessage   
+            </div>
+        }
+
+        <div class="text-box">
+            <InputText @bind-Value="Input.UserName"
+                       id="Input.UserName"
+                       class="login-text"
+                       autocomplete="username"
+                       aria-required="true"
+                       placeholder="UserName" />
+            <ValidationMessage For="() => Input.UserName"
+                               class="text-danger" />
+        </div>
+
+
+        <!-- Password với icon con mắt -->
+        <div>
+            <InputText type="password"
+                       @bind-Value="Input.Password"
+                       id="Input.Password"
+                       class="form-control login-text"
+                       autocomplete="current-password"
+                       placeholder="Password" />
+            <ValidationMessage For="() => Input.Password" class="text-danger" />
+        </div>
+
+        <ValidationMessage For="() => Input.Password" class="text-danger" />
+
+        <label class="checkbox-container">
+            <InputCheckbox id="rememberMe" @bind-Value="Input.RememberMe" />
+            <span>Remember me</span>
+        </label>
+        @(ErrorMessage)
+        <div>
+            <button class="login-text" type="submit">
+                Log in
+            </button>
+        </div>
+    </EditForm>
+</div>
+    
+
+
+@code {
+    private ThongBao thongBao = new();
+
+    private LoginResponseDto formResult = new();
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    private string ErrorMessage = string.Empty;
+    [Inject]
+    private AuthenticationStateProvider AuthProvider { get; set; }
+
+
+
+
+    private bool IsPasswordVisible = false;
+
+    private string PasswordInputType => IsPasswordVisible ? "text" : "password";
+
+    private void TogglePasswordVisibility()
+    {
+        IsPasswordVisible = !IsPasswordVisible;
+        
+    }
+
+
+
+    public async Task LoginUserAsync()
+    {
+        ErrorMessage = string.Empty;
+
+        try
+        {
+            var loginResponseDto =
+                await taiKhoanService.GetByIdChucVuAsync(
+                    Input.UserName,
+                    Input.Password);
+
+            // Đăng nhập thành công
+            if (loginResponseDto.IsSuccess)
+            {
+                if (AuthProvider is CustomAuthenticationStateProvider customProvider)
+                {
+                    customProvider.MarkUserAsAuthenticated(
+                        Input.UserName,
+                        loginResponseDto.Role);
+                }
+
+                await JS.InvokeVoidAsync(
+                    "localStorage.setItem",
+                    "currentId",
+                    loginResponseDto.Id);
+
+                await JS.InvokeVoidAsync(
+                    "localStorage.setItem",
+                    "currentRole",
+                    loginResponseDto.Role);
+
+                await JS.InvokeVoidAsync(
+                    "localStorage.setItem",
+                    "currentUserName",
+                    loginResponseDto.Username);
+
+                if (loginResponseDto.Role == "Admin")
+                {
+                    Navigation.NavigateTo("/thongke");
+                }
+                else if (loginResponseDto.Role == "NhanVien")
+                {
+                    Navigation.NavigateTo("/BanHang");
+                }
+            }
+            else
+            {
+                // Hiển thị lỗi từ API
+                ErrorMessage = loginResponseDto.Message;
+            }
+        }
+        catch (Exception)
+        {
+            ErrorMessage = "Đã xảy ra lỗi khi đăng nhập.";
+        }
+    }
+
+
+}

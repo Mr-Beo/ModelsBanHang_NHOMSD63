@@ -1,0 +1,282 @@
+﻿@page "/DeGiay"
+@using API.Models.DTO
+@using Data.Models
+@inject IDeGiayService deGiayService
+@inject IJSRuntime JS
+<link href="/css/site.css" rel="stylesheet" />
+
+<h4 class="mb-3">👟 Quản lý đế giày</h4>
+
+<div class="row mb-4 text-center">
+    <div class="col-md-4">
+        <div class="bg-light border rounded p-4 shadow-sm h-100">
+            <h6 class="text-muted">Tổng số đế giày</h6>
+            <h4>@danhSachDeGiay.Count</h4>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="bg-light border rounded p-4 shadow-sm h-100">
+            <h6 class="text-muted">Đế giày đang hoạt động</h6>
+            <h4>@danhSachDeGiay.Count(v => v.TrangThai)</h4>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="bg-light border rounded p-4 shadow-sm h-100">
+            <h6 class="text-muted">Đế giày ngừng hoạt động</h6>
+            <h4>@danhSachDeGiay.Count(v => !v.TrangThai)</h4>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm p-4">
+    <!-- Tìm kiếm & nút -->
+    <div class="d-flex justify-content-between mb-3">
+        <input type="text" class="form-control w-50" placeholder="🔍 Tìm tên đế giày..." @bind="searchTerm" @bind:event="oninput" />
+        <button class="btn btn-outline-primary" @onclick="ShowAddForm">➕ Thêm mới</button>
+    </div>
+
+    <!-- Bảng dữ liệu -->
+    <table class="table table-bordered table-hover">
+        <thead class="table-light">
+            <tr>
+                <th style="width: 60px;">STT</th>
+                <th>Tên đế giày</th>
+                <th>Mô tả</th>
+                <th>Trạng thái</th>
+                <th style="width: 120px;">Chức năng</th>
+            </tr>
+        </thead>
+
+        @* aaaa *@
+        <tbody>
+            @if (PagedData.Count == 0)
+            {
+                <tr>
+                    <td colspan="5" class="text-center text-muted">Không tìm thấy kết quả.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var (item, index) in PagedData.Select((value, i) => (value, i)))
+                {
+                    <tr>
+                        <td>@((CurrentPage - 1) * PageSize + index + 1)</td>
+                        <td>@item.TenDeGiay</td>
+                        <td>@item.MoTa</td>
+                        <td>
+                            <span class="badge bg-@(item.TrangThai ? "success" : "secondary")">
+                                @(item.TrangThai ? "Đang hoạt động" : "Ngừng hoạt động")
+                            </span>
+                        </td>
+                        <td>
+                            <i class="bi bi-pencil-square text-primary" style="cursor:pointer" title="Sửa" @onclick="@(() => ShowEditForm(item))"></i>
+                            <i class="bi bi-trash text-danger ms-2" style="cursor:pointer" title="Xoá" @onclick="@(() => AskDelete(item))"></i>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+
+    <!-- Phân trang -->
+    <div class="d-flex justify-content-between align-items-center mt-3">
+        <div>
+            Xem
+            <select class="form-select d-inline-block w-auto" value="@PageSize" @onchange="OnPageSizeChanged">
+                <option value="5">5</option>
+                <option value="10">10</option>
+            </select>
+            đế giày
+        </div>
+        <nav>
+            <ul class="pagination mb-0">
+                <li class="page-item @(CurrentPage == 1 ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => ChangePage(CurrentPage - 1)">‹</button>
+                </li>
+                @for (int i = 1; i <= TotalPages; i++)
+                {
+                    <li class="page-item @(CurrentPage == i ? "active" : "")">
+                        <button class="page-link" @onclick="() => ChangePage(i)">@i</button>
+                    </li>
+                }
+                <li class="page-item @(CurrentPage == TotalPages ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => ChangePage(CurrentPage + 1)">›</button>
+                </li>
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<!-- Component Thêm/Sửa -->
+<CreateOrUpdateDeGiay FormData="FormData"
+                      IsVisible="IsPopupVisible"
+                      OnSubmit="SubmitForm"
+                      OnClose="ClosePopup"
+                      IsEdit="IsEdit" />
+
+<!-- Component Xoá -->
+<DeleteDeGiay Item="SelectedItem"
+              IsVisible="IsConfirmVisible"
+              OnDelete="ConfirmDelete"
+              OnCancel="()=>IsConfirmVisible = false" />
+
+<!-- Toast -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    @if (!string.IsNullOrEmpty(ToastMessage))
+    {
+        <div class="toast show align-items-center text-white bg-success border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">@ToastMessage</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" @onclick="() => ToastMessage = null"></button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<DeGiayDTO> danhSachDeGiay = new();
+    private string searchTerm = string.Empty;
+
+    private int CurrentPage = 1;
+    private int PageSize = 5;
+
+    private List<DeGiayDTO> FilteredList => danhSachDeGiay
+        .Where(x => string.IsNullOrWhiteSpace(searchTerm) || x.TenDeGiay.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
+    private List<DeGiayDTO> PagedData =>
+        FilteredList.Skip((CurrentPage - 1) * PageSize).Take(PageSize).ToList();
+
+    private int TotalPages =>
+        Math.Max(1, (int)Math.Ceiling((double)FilteredList.Count / PageSize));
+
+    private bool IsPopupVisible = false;
+    private bool IsEdit = false;
+    private DeGiayDTO FormData = new();
+    private string? ToastMessage = null;
+
+    private bool IsConfirmVisible = false;
+    private DeGiayDTO? SelectedItem;
+
+    protected override async Task OnInitializedAsync()
+    {
+        danhSachDeGiay = await deGiayService.GetAllAsync();
+    }
+
+    private void ChangePage(int page)
+    {
+        if (page > 0 && page <= TotalPages)
+        {
+            CurrentPage = page;
+        }
+    }
+
+    private void OnPageSizeChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int newSize))
+        {
+            PageSize = newSize;
+            CurrentPage = 1;
+        }
+    }
+
+    private void ShowAddForm()
+    {
+        IsEdit = false;
+        FormData = new DeGiayDTO { TrangThai = true };
+        IsPopupVisible = true;
+    }
+
+    private void ShowEditForm(DeGiayDTO item)
+    {
+        IsEdit = true;
+        FormData = new DeGiayDTO
+        {
+            DeGiayId = item.DeGiayId,
+            TenDeGiay = item.TenDeGiay,
+            MoTa = item.MoTa,
+            TrangThai = item.TrangThai
+        };
+        IsPopupVisible = true;
+    }
+
+    private void ClosePopup()
+    {
+        IsPopupVisible = false;
+    }
+
+    private async Task SubmitForm()
+    {
+        FormData.TenDeGiay = FormData.TenDeGiay.Trim();
+
+        bool isDuplicate;
+
+        // Khi sửa -> bỏ qua chính nó
+        if (IsEdit)
+        {
+            isDuplicate = danhSachDeGiay
+                .Where(x => x.DeGiayId != FormData.DeGiayId)
+                .Any(x => x.TenDeGiay.Trim()
+                .Equals(FormData.TenDeGiay,
+                StringComparison.OrdinalIgnoreCase));
+        }
+        else
+        {
+            isDuplicate = danhSachDeGiay
+                .Any(x => x.TenDeGiay.Trim()
+                .Equals(FormData.TenDeGiay,
+                StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (isDuplicate)
+        {
+            ToastMessage = "Tên đế giày đã tồn tại!";
+            StateHasChanged();
+
+            await Task.Delay(3000);
+            ToastMessage = null;
+            return;
+        }
+
+        bool result = IsEdit
+            ? await deGiayService.UpdateAsync(FormData)
+            : await deGiayService.CreateAsync(FormData);
+
+        ToastMessage = result
+            ? (IsEdit ? "Cập nhật thành công!" : "Thêm thành công!")
+            : "Đã xảy ra lỗi!";
+
+        if (result)
+        {
+            danhSachDeGiay = await deGiayService.GetAllAsync();
+            IsPopupVisible = false;
+        }
+
+        StateHasChanged();
+
+        await Task.Delay(3000);
+        ToastMessage = null;
+    }
+
+    private void AskDelete(DeGiayDTO item)
+    {
+        SelectedItem = item;
+        IsConfirmVisible = true;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (SelectedItem != null)
+        {
+            var result = await deGiayService.DeleteAsync(SelectedItem.DeGiayId);
+            ToastMessage = result ? "Xoá thành công!" : "Xoá thất bại!";
+            if (result)
+                danhSachDeGiay = await deGiayService.GetAllAsync();
+
+            IsConfirmVisible = false;
+            StateHasChanged();
+            await Task.Delay(3000);
+            ToastMessage = null;
+        }
+    }
+}

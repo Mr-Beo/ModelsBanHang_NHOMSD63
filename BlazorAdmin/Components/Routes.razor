@@ -1,0 +1,42 @@
+﻿
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(Program).Assembly" AdditionalAssemblies="new[] { typeof(Components._Imports).Assembly }">
+        <Found Context="routeData">
+            <LayoutView Layout="@ResolveLayout(routeData)">
+                <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                    <NotAuthorized>
+                        <p>Bạn không có quyền truy cập trang này.</p>
+                    </NotAuthorized>
+                    <Authorizing>
+                        <p>Đang xác thực...</p>
+                    </Authorizing>
+                        
+                </AuthorizeRouteView>
+            </LayoutView>
+        </Found>
+        <NotFound>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <h3>404 - Trang không tồn tại</h3>
+                <p>Vui lòng kiểm tra lại đường dẫn.</p>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>
+
+@code {
+    private Type ResolveLayout(RouteData routeData)
+    {
+        // Nếu trang đã chỉ định layout, thì dùng layout đó
+        if (routeData.PageType?.GetCustomAttributes(typeof(LayoutAttribute), true).Any() == true)
+            return null;
+
+        var path = routeData.PageType?.FullName ?? "";
+
+        if (path.Contains(".Admin."))
+            return typeof(AdminLayout);
+        if (path.Contains(".NhanVien."))
+            return typeof(NhanVienLayout);
+        return typeof(MainLayout);
+    }
+
+}

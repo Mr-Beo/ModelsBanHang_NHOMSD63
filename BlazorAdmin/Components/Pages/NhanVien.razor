@@ -1,0 +1,125 @@
+﻿@page "/nhanvien"  
+@using Data.Models  
+@using BlazorAdmin.Service.IService  
+@inject INhanVienService NhanVienService  
+@inject NavigationManager NavigationManager  
+
+<div class="card">  
+    <div class="top-bar">  
+        <input @bind="SearchTerm" @bind:event="oninput" placeholder="🔍 tên hoặc sđt hoặc email" class="search-box" />  
+        <button class="btn-create" @onclick="NavigateToCreate">+ TẠO NHÂN VIÊN</button>  
+    </div>  
+
+    <div class="filters">  
+        <select @bind="SelectedGender">  
+            <option value="">Giới tính: Tất cả</option>  
+            <option value="Nam">Nam</option>  
+            <option value="Nữ">Nữ</option>  
+        </select>  
+        <select @bind="SelectedRole">  
+            <option value="">Chức vụ: Tất cả</option>  
+            <option value="Nhân viên">Nhân viên</option>  
+            <option value="Quản lý">Quản lý</option>  
+        </select>  
+        <select @bind="SelectedStatus">  
+            <option value="">Trạng thái: Tất cả</option>  
+            <option value="Hoạt động">Hoạt động</option>  
+            <option value="Ngưng hoạt động">Ngưng hoạt động</option>  
+        </select>  
+        <button class="btn-export" @onclick="ExportToExcel">XUẤT EXCEL</button>  
+    </div>  
+
+    <table>  
+        <thead>  
+            <tr>  
+                <th>STT</th>  
+                <th>Ảnh</th>  
+                <th>Code</th>  
+                <th>Họ và tên</th>  
+                <th>Email</th>  
+                <th>SDT</th>  
+                <th>Ngày sinh</th>  
+                <th>Giới tính</th>  
+                <th>Chức vụ</th>  
+                <th>Trạng thái</th>  
+                <th>Thao tác</th>  
+            </tr>  
+        </thead>  
+        <tbody>  
+            @if (FilteredData != null)  
+            {  
+                @foreach (var (item, index) in FilteredData.Select((nv, i) => (nv, i)))  
+                {  
+                    <tr>  
+                        <td>@(index + 1)</td>  
+                        <td><img src="@item.Avatar" class="avatar" /></td>  
+                        <td>@item.Code</td>  
+                        <td>@item.Name</td>  
+                        <td>@item.Email</td>  
+                        <td>@item.Phone</td>  
+                        <td>@item.Dob.ToString("dd-MM-yyyy")</td>  
+                        <td>@item.Gender</td>  
+                        <td>@item.Role</td>  
+                        <td><span class="status">@item.Status</span></td>  
+                        <td>  
+                            <button class="btn-view" @onclick="() => ViewDetails(item.Id)">👁️</button>  
+                        </td>  
+                    </tr>  
+                }  
+            }  
+        </tbody>  
+    </table>  
+</div>  
+
+@code {  
+    private string SearchTerm = string.Empty;  
+    private string SelectedGender = string.Empty;  
+    private string SelectedRole = string.Empty;  
+    private string SelectedStatus = string.Empty;  
+
+    private List<MockNhanVien> Data = new()  
+    {  
+        new() { Id = 1, Avatar = "https://i.pravatar.cc/36?img=1", Code = "NV3", Name = "Nguyễn Văn Nhật", Email = "nhatdz@gmail.com", Phone = "0971088478", Dob = new DateTime(2003, 12, 20), Gender = "Nam", Role = "Nhân viên", Status = "Hoạt động" },  
+        new() { Id = 2, Avatar = "https://i.pravatar.cc/36?img=2", Code = "NV2", Name = "Nguyễn Văn Tuấn", Email = "tuannv283@gmail.com", Phone = "0472819462", Dob = new DateTime(2002, 12, 20), Gender = "Nam", Role = "Nhân viên", Status = "Hoạt động" },  
+        new() { Id = 3, Avatar = "https://i.pravatar.cc/36?img=3", Code = "NV1", Name = "Trần Thị Hoa", Email = "hoa.tran@example.com", Phone = "0909123456", Dob = new DateTime(2000, 07, 15), Gender = "Nữ", Role = "Quản lý", Status = "Ngưng hoạt động" }  
+    };  
+
+    private IEnumerable<MockNhanVien> FilteredData => Data.Where(item =>  
+        (string.IsNullOrWhiteSpace(SearchTerm) ||  
+            item.Name.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ||  
+            item.Email.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ||  
+            item.Phone.Contains(SearchTerm)) &&  
+        (string.IsNullOrWhiteSpace(SelectedGender) || item.Gender == SelectedGender) &&  
+        (string.IsNullOrWhiteSpace(SelectedRole) || item.Role == SelectedRole) &&  
+        (string.IsNullOrWhiteSpace(SelectedStatus) || item.Status == SelectedStatus)  
+    );  
+
+    private void NavigateToCreate()  
+    {  
+        NavigationManager.NavigateTo("/themnhanvien");  
+    }  
+
+    private void ViewDetails(int id)  
+    {  
+        NavigationManager.NavigateTo($"/nhanvien/{id}");  
+    }  
+
+    private void ExportToExcel()  
+    {  
+        // Logic to export data to Excel  
+    }  
+
+    private class MockNhanVien  
+    {  
+        public int Id { get; set; }  
+        public string Avatar { get; set; }  
+        public string Code { get; set; }  
+        public string Name { get; set; }  
+        public string Email { get; set; }  
+        public string Phone { get; set; }  
+        public DateTime Dob { get; set; }  
+        public string Gender { get; set; }  
+        public string Role { get; set; }  
+        public string Status { get; set; }  
+    }  
+}

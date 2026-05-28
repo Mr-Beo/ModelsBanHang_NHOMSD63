@@ -1,0 +1,354 @@
+﻿@page "/AddKhachHang"
+@rendermode InteractiveServer
+
+@using Data.Models
+@using System.ComponentModel.DataAnnotations
+@using API.Models.DTO
+@using BlazorAdmin.Service.IService
+
+@inject IKhachHangService khachHangService
+@inject ITaiKhoanService taiKhoanService
+@inject NavigationManager manager
+
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+<h3 class="mb-4">Thêm khách hàng</h3>
+
+<EditForm Model="Input"
+          OnValidSubmit="SubmitFormCreate"
+          FormName="AddKhachHangForm">
+
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <!-- Họ tên -->
+    <div class="mb-3">
+        <label for="hoTen" class="form-label">
+            Họ tên:
+        </label>
+
+        <InputText id="hoTen"
+                   class="form-control"
+                   @bind-Value="Input.HoTen"
+                   autocomplete="off"
+                   placeholder="Nhập họ và tên" />
+    </div>
+
+    <!-- SĐT -->
+    <div class="mb-3">
+        <label for="soDienThoai" class="form-label">
+            Số điện thoại:
+        </label>
+
+        <InputText id="soDienThoai"
+                   class="form-control"
+                   @bind-Value="Input.SoDienThoai"
+                   autocomplete="off"
+                   placeholder="Nhập số điện thoại" />
+    </div>
+
+    <!-- Email -->
+    <div class="mb-3">
+        <label for="email" class="form-label">
+            Email:
+        </label>
+
+        <InputText id="email"
+                   class="form-control"
+                   @bind-Value="Input.Email"
+                   autocomplete="off"
+                   placeholder="Nhập Email" />
+    </div>
+
+    <!-- Ngày sinh -->
+    <div class="mb-3">
+        <label for="ngaySinh" class="form-label">
+            Ngày sinh:
+        </label>
+
+        <InputDate id="ngaySinh"
+                   class="form-control"
+                   @bind-Value="Input.NgaySinh" />
+    </div>
+
+    <!-- Username -->
+    <div class="mb-3">
+        <label for="Tk" class="form-label fw-bold">
+            Tên tài khoản
+        </label>
+
+        <InputText id="Tk"
+                   class="form-control"
+                   @bind-Value="Input.UserName"
+                   placeholder="Nhập tên tài khoản"
+                   autocomplete="off" />
+    </div>
+
+    <!-- Password -->
+    <div class="mb-3">
+
+        <label for="MK1" class="form-label fw-bold">
+            Mật khẩu
+        </label>
+
+        <div class="input-group">
+
+            <InputText id="MK1"
+                       type="@(showPassword ? "text" : "password")"
+                       class="form-control"
+                       @bind-Value="Input.Password"
+                       placeholder="Nhập mật khẩu"
+                       autocomplete="new-password" />
+
+            <button type="button"
+                    class="btn btn-outline-secondary"
+                    @onclick="TogglePassword">
+
+                <i class="bi @(showPassword ? "bi-eye-slash" : "bi-eye")"></i>
+
+            </button>
+
+        </div>
+
+    </div>
+
+    <!-- Confirm Password -->
+    <div class="mb-3">
+
+        <label for="MK2" class="form-label fw-bold">
+            Xác nhận mật khẩu
+        </label>
+
+        <div class="input-group">
+
+            <InputText id="MK2"
+                       type="@(showPassword ? "text" : "password")"
+                       class="form-control"
+                       @bind-Value="Input.ConfirmPassword"
+                       placeholder="Xác nhận mật khẩu"
+                       autocomplete="new-password" />
+
+            <button type="button"
+                    class="btn btn-outline-secondary"
+                    @onclick="TogglePassword">
+
+                <i class="bi @(showPassword ? "bi-eye-slash" : "bi-eye")"></i>
+
+            </button>
+
+        </div>
+
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">
+            @errorMessage
+        </div>
+    }
+
+    <!-- Button -->
+    <button type="submit"
+            class="btn btn-primary me-2"
+            disabled="@isLoading">
+
+        @(isLoading ? "Đang thêm..." : "Thêm")
+
+    </button>
+
+    <button type="button"
+            class="btn btn-danger"
+            @onclick="NavigateToKhachHang">
+
+        Hủy thay đổi
+
+    </button>
+
+</EditForm>
+
+@code {
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = new();
+
+    private KhachHang std = new()
+    {
+        TrangThai = true,
+        NgayTao = DateTime.Now,
+        NgayCapNhatCuoiCung = DateTime.Now
+    };
+
+    private string errorMessage = "";
+
+    private bool showPassword = false;
+
+    private bool isLoading = false;
+
+    private void TogglePassword()
+    {
+        showPassword = !showPassword;
+    }
+
+    private async Task SubmitFormCreate()
+    {
+        errorMessage = "";
+
+        isLoading = true;
+
+        try
+        {
+            // trim dữ liệu
+            Input.HoTen = Input.HoTen.Trim();
+            Input.Email = Input.Email.Trim();
+            Input.SoDienThoai = Input.SoDienThoai.Trim();
+            Input.UserName = Input.UserName.Trim();
+
+            // check username tồn tại
+            var existingUser =
+                await taiKhoanService.GetByUsernameAsync(Input.UserName);
+
+            if (existingUser != null)
+            {
+                errorMessage = "Tên đăng nhập đã tồn tại";
+                return;
+            }
+
+            // check email + sdt
+            var allKh = await khachHangService.GetAll();
+
+            if (allKh.Any(x =>
+                x.Email.Trim().ToLower() ==
+                Input.Email.Trim().ToLower()))
+            {
+                errorMessage = "Email đã tồn tại";
+                return;
+            }
+
+            if (allKh.Any(x =>
+                x.SoDienThoai == Input.SoDienThoai))
+            {
+                errorMessage = "Số điện thoại đã tồn tại";
+                return;
+            }
+
+            // validate tuổi
+            if (Input.NgaySinh > DateTime.Now.AddYears(-18))
+            {
+                errorMessage = "Khách hàng phải đủ 18 tuổi";
+                return;
+            }
+
+            // tạo tài khoản
+            var taiKhoan = new TaiKhoan
+            {
+                TaikhoanId = Guid.NewGuid(),
+                Username = Input.UserName,
+
+                // nếu chưa dùng BCrypt thì dùng Input.Password
+                Password = Input.Password,
+
+                // dùng BCrypt:
+                // Password = BCrypt.Net.BCrypt.HashPassword(Input.Password),
+
+                Ngaytaotaikhoan = DateTime.Now
+            };
+
+            await taiKhoanService.CreateTaiKhoanAsync(taiKhoan);
+
+            // tạo khách hàng
+            std.HoTen = Input.HoTen;
+            std.Email = Input.Email;
+            std.SoDienThoai = Input.SoDienThoai;
+            std.NgaySinh = Input.NgaySinh;
+            std.TaiKhoanId = taiKhoan.TaikhoanId;
+
+            std.NgayTao = DateTime.Now;
+            std.NgayCapNhatCuoiCung = DateTime.Now;
+
+            await khachHangService.Create(std);
+
+            manager.NavigateTo("/KhachHang", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Đã xảy ra lỗi: " + ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void NavigateToKhachHang()
+    {
+        manager.NavigateTo("/KhachHang");
+    }
+
+    private sealed class InputModel
+    {
+        [Required(ErrorMessage = "Chưa nhập họ tên")]
+        [StringLength(50,
+            ErrorMessage = "Họ tên tối đa 50 ký tự")]
+
+        [RegularExpression(
+            @"^[a-zA-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠàáâãèéêìíòóôõùúăđĩũơƯĂẠẢẤẦẨẪẬẮẰẲẴẶẸẺẼỀỀỂẾưăạảấầẩẫậắằẳẵặẹẻẽềềểếỄỆỈỊỌỎỐỒỔỖỘỚỜỞỠỢỤỦỨỪễệỉịọỏốồổỗộớờởỡợụủứừỬỮỰỲỴÝỶỸửữựỳỵỷỹ\s]+$",
+            ErrorMessage =
+            "Họ tên chỉ chứa chữ cái và khoảng trắng")]
+
+        public string HoTen { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Chưa nhập Email")]
+        [EmailAddress(
+            ErrorMessage = "Email không đúng định dạng")]
+
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Chưa nhập số điện thoại")]
+
+        [RegularExpression(@"^(09|03)\d{8}$",
+            ErrorMessage =
+            "Số điện thoại phải bắt đầu bằng 09 hoặc 03 và đủ 10 số")]
+
+        public string SoDienThoai { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Chưa chọn ngày sinh")]
+
+        public DateTime? NgaySinh { get; set; }
+
+        [Required(
+            ErrorMessage = "Tên đăng nhập không được để trống")]
+
+        [MinLength(5,
+            ErrorMessage = "Tên đăng nhập tối thiểu 5 ký tự")]
+
+        [MaxLength(30,
+            ErrorMessage = "Tên đăng nhập tối đa 30 ký tự")]
+
+        [RegularExpression(@"^[a-zA-Z0-9_]+$",
+            ErrorMessage =
+            "Tên đăng nhập không chứa ký tự đặc biệt")]
+
+        public string UserName { get; set; }
+
+        [Required(
+            ErrorMessage = "Mật khẩu không được để trống")]
+
+        [RegularExpression(
+            @"^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{6,}$",
+
+            ErrorMessage =
+            "Mật khẩu phải có chữ và số, tối thiểu 6 ký tự")]
+
+        public string Password { get; set; }
+
+        [Required(
+            ErrorMessage = "Chưa nhập xác nhận mật khẩu")]
+
+        [Compare("Password",
+            ErrorMessage =
+            "Mật khẩu xác nhận không khớp")]
+
+        public string ConfirmPassword { get; set; }
+    }
+}

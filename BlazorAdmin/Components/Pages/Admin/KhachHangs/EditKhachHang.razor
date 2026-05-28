@@ -1,0 +1,185 @@
+﻿@page "/EditKhachHang/{Id:guid}"
+@rendermode InteractiveServer
+
+@using Data.Models
+@using BlazorAdmin.Service.IService
+
+@inject IKhachHangService khachHangService
+@inject ITaiKhoanService taiKhoanService
+@inject NavigationManager manager
+
+<h3 class="mb-4">Chỉnh sửa khách hàng</h3>
+
+<EditForm Model="khachHangs" OnValidSubmit="HandleValidSubmit">
+
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <!-- Họ tên -->
+    <div class="mb-3">
+        <label class="form-label">Họ tên</label>
+        <InputText class="form-control" @bind-Value="khachHangs.HoTen" />
+    </div>
+
+    <!-- SĐT -->
+    <div class="mb-3">
+        <label class="form-label">Số điện thoại</label>
+        <InputText class="form-control" @bind-Value="khachHangs.SoDienThoai" />
+    </div>
+
+    <!-- Email -->
+    <div class="mb-3">
+        <label class="form-label">Email</label>
+        <InputText class="form-control" @bind-Value="khachHangs.Email" />
+    </div>
+
+    <!-- Ngày sinh -->
+    <div class="mb-3">
+        <label class="form-label">Ngày sinh</label>
+        <InputDate class="form-control" @bind-Value="khachHangs.NgaySinh" />
+    </div>
+
+    @if (khachHangs.TaiKhoan != null)
+    {
+        <!-- Username -->
+        <div class="mb-3">
+            <label class="form-label">Tài khoản</label>
+            <InputText class="form-control"
+                       @bind-Value="khachHangs.TaiKhoan.Username" />
+        </div>
+
+        <!-- Password MỚI -->
+        <div class="mb-3">
+            <label class="form-label">Mật khẩu mới</label>
+
+            <div class="input-group">
+                <InputText class="form-control"
+                           type="@(showPassword ? "text" : "password")"
+                           @bind-Value="newPassword" />
+
+                <button type="button"
+                        class="btn btn-outline-secondary"
+                        @onclick="TogglePassword">
+                    <i class="bi @(showPassword ? "bi-eye-slash" : "bi-eye")"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Confirm Password -->
+        <div class="mb-3">
+            <label class="form-label">Nhập lại mật khẩu</label>
+
+            <div class="input-group">
+                <InputText class="form-control"
+                           type="@(showPassword ? "text" : "password")"
+                           @bind-Value="confirmPassword" />
+
+                <button type="button"
+                        class="btn btn-outline-secondary"
+                        @onclick="TogglePassword">
+                    <i class="bi @(showPassword ? "bi-eye-slash" : "bi-eye")"></i>
+                </button>
+            </div>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">
+            @errorMessage
+        </div>
+    }
+
+    <!-- Button -->
+    <button type="submit" class="btn btn-success me-2">
+        Lưu thay đổi
+    </button>
+
+    <button type="button"
+            class="btn btn-danger"
+            @onclick='() => manager.NavigateTo("/KhachHang")'>
+        Hủy thay đổi
+    </button>
+
+</EditForm>
+
+@code {
+
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private KhachHang khachHangs = new()
+    {
+        TaiKhoan = new TaiKhoan()
+    };
+
+    private string errorMessage = "";
+    private bool showPassword = false;
+
+    private string newPassword = "";
+    private string confirmPassword = "";
+
+    private void TogglePassword()
+    {
+        showPassword = !showPassword;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var result = await khachHangService.GetById(Id);
+
+            if (result != null)
+            {
+                khachHangs = result;
+                khachHangs.TaiKhoan ??= new TaiKhoan();
+            }
+            else
+            {
+                errorMessage = "Không tìm thấy khách hàng";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Lỗi tải dữ liệu: " + ex.Message;
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            errorMessage = "";
+
+            // check mật khẩu nếu có nhập
+            if (!string.IsNullOrWhiteSpace(newPassword))
+            {
+                if (newPassword != confirmPassword)
+                {
+                    errorMessage = "Mật khẩu không khớp";
+                    return;
+                }
+
+                khachHangs.TaiKhoan.Password = newPassword;
+            }
+
+            khachHangs.NgayCapNhatCuoiCung = DateTime.Now;
+
+            // UPDATE KHÁCH HÀNG
+            await khachHangService.Update(khachHangs);
+
+            // UPDATE TÀI KHOẢN (QUAN TRỌNG)
+            if (khachHangs.TaiKhoan != null)
+            {
+                await taiKhoanService.UpdateTaiKhoanAsync(khachHangs.TaiKhoan);
+            }
+
+            manager.NavigateTo("/KhachHang");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Lỗi cập nhật: " + ex.Message;
+        }
+    }
+}

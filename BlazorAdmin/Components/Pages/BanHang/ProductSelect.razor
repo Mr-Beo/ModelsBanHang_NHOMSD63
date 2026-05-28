@@ -1,0 +1,853 @@
+﻿@inject IGiayChiTietService GiayChiTietService
+@using API.Models.DTO
+@using Data.Models
+@inject IGiayService GiayService
+@inject IJSRuntime JS
+@if (Visible)
+{
+    <div class="customer-select-overlay"></div>
+    <div class="product-select-box">
+        <input type="text" class="search-input"
+               placeholder="Tìm theo tên, ID, size..."
+               @bind="SearchKeyword"
+               @oninput="OnSearchChanged" />
+        <div class="product-select-list">
+            @if (Products.Count == 0)
+            {
+                <div class="empty-notice">Không có sản phẩm nào để hiển thị.</div>
+            }
+            else
+            {
+                @*  @foreach (var product in Products
+               .Where(p =>
+               string.IsNullOrWhiteSpace(SearchKeyword) ||
+               p.GiayChiTietId.ToString().Contains(SearchKeyword) ||
+               (p.TenGiay != null && p.TenGiay.ToLower().Contains(SearchKeyword)) ||
+               p.size.ToString().Contains(SearchKeyword)
+               )) *@
+                @foreach (var product in Products.Where(p =>
+                        string.IsNullOrWhiteSpace(SearchKeyword) ||
+                        (p.TenGiay != null && p.TenGiay.ToLower().Contains(SearchKeyword))
+                        ))
+                {
+                    <div class="product-select-item @(SelectedProducts.Contains(product.SelectedVariant.GiayChiTietId) ? "active-product" : "")"
+                         @onclick="() => ToggleProduct(product.SelectedVariant)">
+                        <img src="@($"https://localhost:7246{product.SelectedVariant.AnhGiay ?? "/images/no-image.png"}")" class="order-img" alt="@product.TenGiay" />
+                        <div class="item-info">
+                            <div class="order-name">@product.TenGiay</div>
+                            <div class="order-price">
+                                <span class="old-price">@FormatMoney(product.SelectedVariant.GiaGoc)</span>
+                                <span class="new-price">@FormatMoney(product.SelectedVariant.Gia)</span>
+                            </div>
+                            <div class="order-size">
+                                Kích cỡ:
+                                <select value="@product.SelectedSize"
+                                        @onchange="e => ChangeSize(product, e.Value?.ToString())">
+
+                                    @foreach (var size in product.Variants
+                                                            .Where(x => x.TenMau == product.SelectedColor)
+                                                            .Select(x => x.size)
+                                                            .Distinct()
+                                                            .OrderBy(x => x))
+                                    {
+                                        <option value="@size">
+                                            Size @size
+                                        </option>
+                                    }
+
+                                </select>
+                            </div>
+                            <div class="order-mausac">
+                                Màu sắc:
+                                <select value="@product.SelectedColor"
+                                        @onchange="e => ChangeColor(product, e.Value?.ToString())">
+
+                                    @foreach (var color in product.Variants
+                                                            .Select(x => x.TenMau)
+                                                            .Distinct())
+                                    {
+                                        <option value="@color">
+                                            @color
+                                        </option>
+                                    }
+
+                                </select>
+                            </div>
+                            <div class="stock-text">
+                                Tồn kho:
+                                <strong>@product.SelectedVariant.SoLuongCon</strong>
+                            </div>
+                        </div>
+                        <div class="product-right">
+
+                            <div class="order-qty">
+                                <button class="decrease-btn"
+                                        @onclick="() => ChangeQty(product.SelectedVariant, -1)">
+                                    -
+                                </button>
+
+                                <input type="number"
+                                       class="qty-input"
+                                       value="@product.SelectedVariant.SoLuongDat"
+                                       @oninput="@(e => ValidateQtyInput(product.SelectedVariant, e.Value?.ToString()))" />
+
+                                <button class="increase-btn"
+                                        @onclick="() => ChangeQty(product.SelectedVariant, 1)">
+                                    +
+                                </button>
+                            </div>
+
+                        </div>
+                        <div class="order-total">@FormatMoney(product.SelectedVariant.Gia * product.SelectedVariant.SoLuongDat)</div>
+                        <div class="select-product-checkbox">
+                            <input type="checkbox"
+                                   checked="@SelectedProducts.Contains(product.SelectedVariant.GiayChiTietId)"
+                                   @onchange="(e => ToggleSelect(product.SelectedVariant, (bool)e.Value))" />
+
+                            <span>Chọn sản phẩm</span>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+        <div class="bottom-actions">
+            <button class="multi-add-btn" @onclick="AddSelectedProducts">
+                Thêm sản phẩm đã chọn (@SelectedProducts.Count)
+            </button>
+
+            <button class="close-customer-select" @onclick="Close">
+                Đóng
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<GiayChiTietDTO> OnAddProduct { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    private HashSet<Guid> SelectedProducts = new();
+    // private List<GiayChiTietDTO> Products = new();
+    private List<ProductGroup> Products = new();
+    // 🔍 Tìm kiếm
+    private string SearchKeyword = "";
+    private async Task ValidateQtyInput(
+    GiayChiTietDTO g,
+    string? value)
+    {
+        // không nhập => mặc định 1
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            g.SoLuongDat = 1;
+            StateHasChanged();
+            return;
+        }
+
+        // nhập không hợp lệ
+        if (!int.TryParse(value, out int qty))
+        {
+            g.SoLuongDat = 1;
+
+            await JS.InvokeVoidAsync("Swal.fire", new
+            {
+                toast = true,
+                position = "top-end",
+                icon = "warning",
+                title = "Số lượng không hợp lệ",
+                showConfirmButton = false,
+                timer = 2500
+            });
+
+            StateHasChanged();
+            return;
+        }
+
+        // nhỏ hơn 1
+        if (qty < 1)
+        {
+            g.SoLuongDat = 1;
+
+            await JS.InvokeVoidAsync("Swal.fire", new
+            {
+                toast = true,
+                position = "top-end",
+                icon = "warning",
+                title = "Số lượng tối thiểu là 1",
+                showConfirmButton = false,
+                timer = 2500
+            });
+
+            StateHasChanged();
+            return;
+        }
+
+        // vượt tồn kho
+        if (qty > g.SoLuongCon)
+        {
+            g.SoLuongDat = g.SoLuongCon;
+
+            await JS.InvokeVoidAsync("Swal.fire", new
+            {
+                toast = true,
+                position = "top-end",
+                icon = "info",
+                title = $"Chỉ còn {g.SoLuongCon} sản phẩm",
+                showConfirmButton = false,
+                timer = 3000
+            });
+
+            StateHasChanged();
+            return;
+        }
+
+        // hợp lệ
+        g.SoLuongDat = qty;
+
+        StateHasChanged();
+    }
+    private void ToggleProduct(GiayChiTietDTO product)
+    {
+        if (SelectedProducts.Contains(product.GiayChiTietId))
+        {
+            SelectedProducts.Remove(product.GiayChiTietId);
+        }
+        else
+        {
+            SelectedProducts.Add(product.GiayChiTietId);
+        }
+    }
+    private void ToggleSelect(GiayChiTietDTO product, bool isChecked)
+    {
+        if (isChecked)
+        {
+            SelectedProducts.Add(product.GiayChiTietId);
+        }
+        else
+        {
+            SelectedProducts.Remove(product.GiayChiTietId);
+        }
+    }
+    private async Task AddSelectedProducts()
+    {
+        var selectedItems = Products
+            .Select(x => x.SelectedVariant)
+            .Where(x => SelectedProducts.Contains(x.GiayChiTietId))
+            .ToList();
+
+        foreach (var g in selectedItems)
+        {
+            var item = new GiayChiTietDTO
+            {
+                GiayChiTietId = g.GiayChiTietId,
+                GiayId = g.GiayId,
+                Gia = (float)g.Gia,
+                GiaGoc = (float)g.GiaGoc,
+                size = g.size,
+                MauSacId = g.MauSacId,
+                SoLuongCon = g.SoLuongCon,
+                SoLuongDat = g.SoLuongDat,
+                TrangThai = true,
+                AnhGiay = g.AnhGiay,
+                TenGiay = g.TenGiay
+            };
+
+            await OnAddProduct.InvokeAsync(item);
+        }
+
+        SelectedProducts.Clear();
+
+        await OnClose.InvokeAsync();
+    }
+    private void ChangeSize(ProductGroup product, string value)
+    {
+        if (int.TryParse(value, out int size))
+        {
+            product.SelectedSize = size;
+
+            UpdateVariant(product);
+        }
+    }
+    private void ChangeColor(ProductGroup product, string value)
+    {
+        product.SelectedColor = value;
+
+        // lấy các variant theo màu đã chọn
+        var variantsByColor = product.Variants
+            .Where(x => x.TenMau == value)
+            .OrderBy(x => x.size)
+            .ToList();
+
+        if (variantsByColor.Any())
+        {
+            // tự động lấy size nhỏ nhất
+            var firstVariant = variantsByColor.First();
+
+            product.SelectedSize = firstVariant.size;
+
+            // đổi variant => đổi luôn ảnh + giá
+            product.SelectedVariant = firstVariant;
+        }
+
+        StateHasChanged();
+    }
+
+    private void UpdateVariant(ProductGroup product)
+    {
+        var found = product.Variants.FirstOrDefault(x =>
+            x.size == product.SelectedSize &&
+            x.TenMau == product.SelectedColor);
+
+        if (found != null)
+        {
+            product.SelectedVariant = found;
+        }
+    }
+    private void OnSearchChanged(ChangeEventArgs e)
+    {
+        SearchKeyword = e.Value?.ToString()?.ToLower() ?? "";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var data = await GiayChiTietService.GetAllAsync();
+
+        // lấy danh sách giày đang bán
+        var giayList = await GiayService.GetAllAsync();
+
+        var giayDangBanIds = giayList
+            .Where(x => x.TrangThai)
+            .Select(x => x.GiayId)
+            .ToHashSet();
+
+        // chỉ lấy biến thể đang bán + còn hoạt động
+        data = data
+            .Where(x =>
+                giayDangBanIds.Contains(x.GiayId) &&
+                x.TrangThai &&
+                x.SoLuongCon > 0
+            )
+            .ToList();
+
+        Products = data
+            .GroupBy(x => x.GiayId)
+            .Select(g => new ProductGroup
+            {
+                GiayId = g.Key,
+                TenGiay = g.First().TenGiay,
+                AnhGiay = g.First().AnhGiay,
+
+                Variants = g.ToList(),
+
+                SelectedVariant = g.First(),
+
+                SelectedSize = g.First().size,
+
+                SelectedColor = g.First().TenMau
+            })
+            .ToList();
+    }
+
+    private async void ChangeQty(GiayChiTietDTO g, int delta)
+    {
+        g.SoLuongDat += delta;
+        if (g.SoLuongDat > g.SoLuongCon)
+        {
+            g.SoLuongDat = g.SoLuongCon;
+            await JS.InvokeVoidAsync("Swal.fire", new
+            {
+                toast = true,
+                position = "top-end",
+                icon = "info",
+                title = "Số lượng sản phẩm tối đa",
+                showConfirmButton = false,
+                timer = 3000,
+                timerProgressBar = true
+            });
+        }
+        if (g.SoLuongDat < 1) g.SoLuongDat = 1;
+
+        StateHasChanged();
+    }
+
+    private async Task AddToOrder(GiayChiTietDTO g)
+    {
+        var item = new GiayChiTietDTO
+        {
+            GiayChiTietId = g.GiayChiTietId,
+            GiayId = g.GiayId,
+            Gia = (float)g.Gia,
+            GiaGoc = (float)g.GiaGoc,
+            size = g.size,
+            MauSacId = g.MauSacId,
+            SoLuongCon = g.SoLuongCon,
+            SoLuongDat = g.SoLuongDat,
+            TrangThai = true,
+
+            // ✅ THÊM 2 DÒNG NÀY
+            AnhGiay = g.AnhGiay,
+            TenGiay = g.TenGiay
+        };
+
+        await OnAddProduct.InvokeAsync(item);
+        await OnClose.InvokeAsync();
+    }
+
+    private void Close()
+    {
+        OnClose.InvokeAsync();
+    }
+
+    private string FormatMoney(float amount)
+    {
+        return string.Format("{0:N0} VND", amount);
+    }
+    public class ProductGroup
+    {
+        public Guid GiayId { get; set; }
+        public string TenGiay { get; set; }
+        public string AnhGiay { get; set; }
+
+        public List<GiayChiTietDTO> Variants { get; set; } = new();
+
+        public GiayChiTietDTO SelectedVariant { get; set; }
+        public int SelectedSize { get; set; }
+
+        public string SelectedColor { get; set; }
+    }
+}
+<style>
+    /* ===== OVERLAY ===== */
+    .customer-select-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.45);
+        backdrop-filter: blur(4px);
+        z-index: 999;
+    }
+
+    /* ===== MAIN BOX ===== */
+    .product-select-box {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 92%;
+        max-width: 1250px;
+        max-height: 92vh;
+        overflow: hidden;
+        background: #ffffff;
+        border-radius: 30px;
+        padding: 28px;
+        z-index: 1000;
+        box-shadow: 0 25px 70px rgba(0,0,0,0.18);
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* ===== SEARCH ===== */
+    .search-input {
+        width: 100%;
+        height: 60px;
+        padding: 0 24px;
+        border-radius: 18px;
+        border: 2px solid #f2f2f2;
+        background: linear-gradient(to bottom,#fff,#fafafa);
+        font-size: 15px;
+        color: #222;
+        transition: all .25s ease;
+        margin-bottom: 24px;
+        font-weight: 500;
+    }
+
+        .search-input::placeholder {
+            color: #999;
+            font-style: italic;
+        }
+
+        .search-input:hover {
+            border-color: #ffcc80;
+            background: #fff;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #ff9800;
+            background: #fff;
+            box-shadow: 0 0 0 6px rgba(255,152,0,0.12);
+        }
+
+    /* ===== LIST ===== */
+    .product-select-list {
+        flex: 1;
+        overflow-y: auto;
+        padding-right: 8px;
+    }
+
+        .product-select-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .product-select-list::-webkit-scrollbar-thumb {
+            background: #ddd;
+            border-radius: 20px;
+        }
+
+    /* ===== EMPTY ===== */
+    .empty-notice {
+        padding: 40px;
+        text-align: center;
+        font-size: 16px;
+        color: #999;
+    }
+
+    /* ===== ITEM ===== */
+    .product-select-item {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        padding: 22px;
+        margin-bottom: 20px;
+        border-radius: 26px;
+        background: linear-gradient(to bottom right,#ffffff,#fcfcfc);
+        border: 1px solid #f2f2f2;
+        transition: all .25s ease;
+        box-shadow: 0 6px 22px rgba(0,0,0,0.05);
+    }
+
+        .product-select-item:hover {
+            transform: translateY(-4px);
+            border-color: #ffd180;
+            box-shadow: 0 16px 34px rgba(255,152,0,0.14);
+        }
+
+    /* ===== IMAGE ===== */
+    .order-img {
+        width: 135px;
+        height: 135px;
+        object-fit: cover;
+        border-radius: 22px;
+        border: 1px solid #f1f1f1;
+        background: #fafafa;
+        flex-shrink: 0;
+        transition: .25s;
+    }
+
+    .product-select-item:hover .order-img {
+        transform: scale(1.03);
+    }
+
+    /* ===== INFO ===== */
+    .item-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .order-name {
+        font-size: 22px;
+        font-weight: 800;
+        color: #222;
+        line-height: 1.4;
+    }
+
+    /* ===== PRICE ===== */
+    .order-price {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+
+    .old-price {
+        font-size: 15px;
+        color: #999;
+        text-decoration: line-through;
+    }
+
+    .new-price {
+        font-size: 26px;
+        font-weight: 800;
+        color: #e53935;
+    }
+
+    /* ===== SELECT AREA ===== */
+    .order-size,
+    .order-mausac {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 14px;
+        color: #555;
+        font-weight: 600;
+    }
+
+        .order-size select,
+        .order-mausac select {
+            min-width: 130px;
+            height: 44px;
+            padding: 0 14px;
+            border-radius: 14px;
+            border: 1px solid #e4e4e4;
+            background: #fafafa;
+            font-size: 14px;
+            transition: .2s;
+            cursor: pointer;
+        }
+
+            .order-size select:hover,
+            .order-mausac select:hover {
+                border-color: #ffb74d;
+                background: #fff;
+            }
+
+            .order-size select:focus,
+            .order-mausac select:focus {
+                outline: none;
+                border-color: #ff9800;
+                background: #fff;
+                box-shadow: 0 0 0 4px rgba(255,152,0,0.12);
+            }
+
+    /* ===== STOCK ===== */
+    .stock-text {
+        margin-top: 4px;
+        font-size: 15px;
+        color: #666;
+    }
+
+        .stock-text strong {
+            color: #2e7d32;
+            font-size: 18px;
+        }
+
+    /* ===== RIGHT ===== */
+    .product-right {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        justify-content: center;
+        gap: 18px;
+    }
+
+    /* ===== QUANTITY ===== */
+    .order-qty {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: #fafafa;
+        border: 1px solid #ececec;
+        padding: 10px 14px;
+        border-radius: 18px;
+    }
+
+    .decrease-btn,
+    .increase-btn {
+        width: 40px;
+        height: 40px;
+        border: none;
+        border-radius: 14px;
+        background: linear-gradient(135deg,#ff9800,#ff6d00);
+        color: white;
+        font-size: 20px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: .2s ease;
+        box-shadow: 0 6px 14px rgba(255,152,0,0.25);
+    }
+
+        .decrease-btn:hover,
+        .increase-btn:hover {
+            transform: scale(1.08);
+        }
+
+    .qty-input {
+        width: 60px;
+        border: none;
+        background: transparent;
+        text-align: center;
+        font-size: 18px;
+        font-weight: 700;
+        color: #222;
+    }
+
+        .qty-input:focus {
+            outline: none;
+        }
+
+    /* ===== TOTAL ===== */
+    .order-total {
+        min-width: 170px;
+        text-align: right;
+        font-size: 24px;
+        font-weight: 800;
+        color: #2e7d32;
+    }
+
+    /* ===== CHECKBOX ===== */
+    .select-product-checkbox {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #555;
+    }
+
+        .select-product-checkbox input {
+            width: 22px;
+            height: 22px;
+            cursor: pointer;
+            accent-color: #ff9800;
+        }
+
+    /* ===== BOTTOM ACTIONS ===== */
+    .bottom-actions {
+        position: sticky;
+        bottom: 0;
+        display: flex;
+        gap: 16px;
+        padding-top: 24px;
+        margin-top: 10px;
+        background: #fff;
+    }
+
+    .multi-add-btn {
+        flex: 1;
+        height: 60px;
+        border: none;
+        border-radius: 18px;
+        background: linear-gradient(135deg,#43a047,#2e7d32);
+        color: white;
+        font-size: 17px;
+        font-weight: 800;
+        cursor: pointer;
+        transition: .25s;
+        box-shadow: 0 10px 24px rgba(67,160,71,0.25);
+    }
+
+        .multi-add-btn:hover {
+            transform: translateY(-2px);
+        }
+
+    .close-customer-select {
+        width: 190px;
+        border: none;
+        border-radius: 18px;
+        background: #f5f5f5;
+        color: #444;
+        font-size: 16px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: .2s;
+    }
+
+        .close-customer-select:hover {
+            background: #ebebeb;
+        }
+
+    /* ===== MOBILE ===== */
+    @@media (max-width: 768px) {
+
+        .product-select-box {
+            width: 96%;
+            padding: 18px;
+            border-radius: 22px;
+        }
+
+        .product-select-item {
+            flex-direction: column;
+            align-items: stretch;
+            padding: 18px;
+        }
+
+        .order-img {
+            width: 100%;
+            height: 240px;
+        }
+
+        .product-right {
+            align-items: flex-start;
+        }
+
+        .order-total {
+            text-align: left;
+            min-width: unset;
+        }
+
+        .bottom-actions {
+            flex-direction: column;
+        }
+
+        .close-customer-select {
+            width: 100%;
+            height: 55px;
+        }
+
+        .multi-add-btn {
+            height: 55px;
+        }
+
+        .select-product-checkbox {
+            position: static;
+            margin-top: 12px;
+        }
+    }
+
+    .product-select-item {
+        position: relative;
+        display: flex;
+        align-items: center; /* căn giữa toàn bộ */
+        justify-content: space-between;
+    }
+
+    /* checkbox góc phải */
+    .select-product-checkbox {
+        position: absolute;
+        top: 16px;
+        right: 18px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: #fff8f0;
+        padding: 8px 12px;
+        border-radius: 14px;
+        border: 1px solid #ffe0b2;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }
+
+        /* checkbox đẹp hơn */
+        .select-product-checkbox input {
+            width: 20px;
+            height: 20px;
+            accent-color: #ff9800;
+            cursor: pointer;
+        }
+
+    /* căn giữa phần info */
+    .item-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center; /* căn giữa dọc */
+        gap: 10px;
+    }
+
+    /* căn giữa bên phải */
+    .product-right {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* tổng tiền căn giữa */
+    .order-total {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 170px;
+    }
+</style>

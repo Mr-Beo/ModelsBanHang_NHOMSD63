@@ -1,0 +1,456 @@
+﻿@page "/shoelist"
+@rendermode InteractiveServer
+@using Data.Models
+@using BlazorKhachHang.Service.IService
+@using API.Models.DTO
+@inject IGiayChiTietService chiTietService
+@inject IGiayService service
+@inject IGiayYeuThichService giayYeuThichService
+@inject IGioHangService gioHangService
+@inject NavigationManager manager
+@inject IJSRuntime JS
+@inject FavoriteState FavoriteState
+
+<style>
+    .old-price {
+        text-decoration: line-through;
+        color: #999;
+        font-size: 13px;
+        margin-right: 8px;
+    }
+
+    .main-price {
+        color: #e53935;
+        font-weight: bold;
+        font-size: 16px;
+    }
+
+    .product-img-container {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .sale-badge {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: #e53935;
+        color: white;
+        font-size: 12px;
+        font-weight: bold;
+        padding: 4px 8px;
+        border-radius: 4px;
+        z-index: 10;
+    }
+
+    .saving {
+        font-size: 11px;
+        color: #388e3c;
+        margin-top: 2px;
+        font-weight: 500;
+    }
+
+    .product-card {
+        cursor: pointer;
+        transition: transform 0.2s;
+        border: 1px solid #eee;
+        border-radius: 8px;
+        background: #fff;
+    }
+
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+    .price-row {
+        display: flex;
+        align-items: center;
+        margin-top: 5px;
+    }
+</style>
+
+<link href="css/shoelist.css" rel="stylesheet">
+
+<h3 class="breadcrumb-wrapper">
+    <div class="breadcrumb"><h2>Shoe List</h2></div>
+</h3>
+
+<main class="container">
+    <aside class="filter">
+        <strong>Thương Hiệu</strong><br />
+        @foreach (var brand in brandList)
+        {
+            <label>
+                <input type="checkbox"
+                       checked="@(IsBrandSelected.ContainsKey(brand) && IsBrandSelected[brand])"
+                       @onchange="(e) => OnBrandChanged(brand, (bool)e.Value!)" />
+                @brand
+            </label>
+            <br />
+        }
+
+        <div class="filter-group">
+            <strong>Khoảng Giá</strong><br />
+            @foreach (var range in priceRanges)
+            {
+                <label>
+                    <input type="checkbox"
+                           @onchange="@(() => OnPriceRangeChanged(range.Label))"
+                           checked="@selectedPriceLabels.Contains(range.Label)" />
+                    @range.Label
+                </label>
+                <br />
+            }
+        </div>
+
+        <div class="filter-group">
+            <strong>Màu Sắc</strong>
+            <div class="color-options">
+                @foreach (var color in colorList)
+                {
+                    <span class="color @(selectedColors.Contains(color) ? "selected" : "")"
+                          style="background: @color;"
+                          @onclick="() => OnColorFilterChanged(color)">
+                    </span>
+                }
+            </div>
+        </div>
+    </aside>
+
+    <section class="product-section">
+        <div class="section-header">
+            <input type="text" class="search-input"
+                   placeholder="Tìm theo tên giày..."
+                   @bind="searchKeyword"
+                   @bind:event="oninput" />
+
+            <select class="sort-dropdown">
+                <option>Best selling</option>
+                <option>Price: Low to High</option>
+                <option>Price: High to Low</option>
+            </select>
+        </div>
+
+        <div class="product-grid">
+            @if (giayList != null && giayList.Count > 0)
+            {
+                @foreach (var giay in giayList.Where(g => g.TrangThai && g.ChiTietGiays != null && g.ChiTietGiays.Any()))
+                {
+                    var bestVariant = giay.ChiTietGiays
+                    .OrderBy(ct => ct.Gia)
+                    .First();
+
+                    decimal giaHienTai = (decimal)bestVariant.Gia;
+                    decimal giaGoc = (decimal)bestVariant.GiaGoc;
+
+                    int phanTramGiam = 0;
+                    if (bestVariant.DaGiamGia && giaGoc > 0)
+                    {
+                        phanTramGiam = (int)Math.Round((double)(giaGoc - giaHienTai) * 100 / (double)giaGoc);
+                    }
+
+                    <div class="product-card" @onclick="@(() => NavigateToDetail(giay.GiayId))">
+                        <div class="product-img-container">
+
+                            <img src="@GetFullImageUrl(bestVariant.AnhGiay)"
+                                 style="width:100%" />
+
+                            @if (bestVariant.DaGiamGia)
+                            {
+                                <div class="sale-badge">
+                                    -@phanTramGiam%
+                                </div>
+                            }
+
+                            <div class="favorite-btn"
+                                 @onclick:stopPropagation="true"
+                                 @onclick="async () => await ToggleFavorite(giay.GiayId)">
+
+                                <i class="@(IsFavorite(giay.GiayId)
+                                               ? "fas fa-heart"
+                                               : "far fa-heart")">
+                        </i>
+
+                            </div>
+
+                        </div>
+
+                        <div class="product-info" style="padding: 12px;">
+                            <p>@giay.TenGiay</p>
+
+                            <div class="price-row">
+                                <span class="main-price">
+                                    @giaHienTai.ToString("N0")đ
+                                </span>
+
+                                @if (bestVariant.DaGiamGia)
+                                {
+                                    <span class="old-price">
+                                        @giaGoc.ToString("N0")đ
+                                    </span>
+                                }
+                            </div>
+
+                            @if (bestVariant.DaGiamGia)
+                            {
+                                <div class="saving">
+                                    Tiết kiệm @((giaGoc - giaHienTai).ToString("N0"))đ
+                                </div>
+                            }
+                            <p class="rating">
+                                <span class="stars">★★★★☆</span>
+                                <span class="count">(17523)</span>
+                            </p>
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <p>Không có sản phẩm nào...</p>
+            }
+        </div>
+    </section>
+</main>
+
+@code {
+    private string BaseApiUrl = "https://localhost:7246";
+    private List<GiayDTO> giayList = new();
+    private List<GiayDTO> allGiayList = new();
+    private List<GiayYeuThichDTO> danhSachYeuThich = new();
+
+    private Guid khachHangId;
+    private HashSet<string> selectedBrands = new();
+    private Dictionary<string, bool> IsBrandSelected = new();
+    private List<string> brandList = new();
+    private HashSet<string> favoriteIds = new();
+
+    private List<(string Label, decimal? Min, decimal? Max)> priceRanges = new()
+    {
+        ("Dưới 200.000đ", null, 200_000),
+        ("200.000đ - 500.000đ", 200_000, 500_000),
+        ("500.000đ - 1.000.000đ", 500_000, 1_000_000),
+        ("1.000.000đ - 2.000.000đ", 1_000_000, 2_000_000),
+        ("Trên 2.000.000đ", 2_000_000, null)
+    };
+
+    private HashSet<string> selectedPriceLabels = new();
+    private List<string> colorList = new() { "red", "green", "blue", "yellow", "black", "white" };
+    private HashSet<string> selectedColors = new();
+
+    private string _searchKeyword = "";
+    private string searchKeyword
+    {
+        get => _searchKeyword;
+        set
+        {
+            _searchKeyword = value;
+            FilterGiayList();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // THÊM ĐOẠN NÀY
+            var khachId = await JS.InvokeAsync<string>(
+                "localStorage.getItem",
+                "khachHangId");
+
+            if (!string.IsNullOrEmpty(khachId))
+            {
+                khachHangId = Guid.Parse(khachId);
+
+                danhSachYeuThich =
+                    (await giayYeuThichService
+                    .GetAllByKhachHangAsync(khachHangId))
+                    .ToList();
+            }
+
+            // code cũ giữ nguyên
+            var giayListFromApi =
+                await service.GetAllAsync()
+                ?? new List<GiayDTO>();
+
+            var chiTietList =
+                await chiTietService.GetAllAsync()
+                ?? new List<GiayChiTietDTO>();
+
+            allGiayList = giayListFromApi.Select(g => new GiayDTO
+            {
+                GiayId = g.GiayId,
+                TenGiay = g.TenGiay,
+
+                TenThuongHieu =
+                    string.IsNullOrEmpty(g.TenThuongHieu)
+                    ? "Chưa có thương hiệu"
+                    : g.TenThuongHieu,
+
+                TrangThai = g.TrangThai,
+
+                ChiTietGiays = chiTietList
+                    .Where(ct => ct.GiayId == g.GiayId)
+                    .ToList()
+
+            }).ToList();
+
+            brandList = allGiayList
+                .Where(x => !string.IsNullOrWhiteSpace(x.TenThuongHieu))
+                .Select(x => x.TenThuongHieu!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x)
+                .ToList();
+
+            IsBrandSelected =
+                brandList.ToDictionary(b => b, b => false);
+
+            FilterGiayList();
+
+            StateHasChanged();
+        }
+    }
+
+    private void FilterGiayList()
+    {
+        IEnumerable<GiayDTO> query = allGiayList;
+
+        if (!string.IsNullOrWhiteSpace(searchKeyword))
+        {
+            query = query.Where(g =>
+                !string.IsNullOrEmpty(g.TenGiay) &&
+                g.TenGiay.Contains(searchKeyword, StringComparison.OrdinalIgnoreCase));
+        }
+
+        selectedBrands = IsBrandSelected
+    .Where(x => x.Value)
+    .Select(x => x.Key.Trim())
+    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (selectedBrands.Any())
+        {
+            query = query.Where(g =>
+    !string.IsNullOrWhiteSpace(g.TenThuongHieu) &&
+    selectedBrands.Contains(g.TenThuongHieu.Trim(), StringComparer.OrdinalIgnoreCase));
+        }
+
+        if (selectedPriceLabels.Any())
+        {
+            query = query.Where(g =>
+                g.ChiTietGiays != null && g.ChiTietGiays.Any() &&
+                priceRanges.Any(range =>
+                {
+                    var minPrice = (decimal)g.ChiTietGiays.Min(ct => ct.Gia);
+                    return selectedPriceLabels.Contains(range.Label) &&
+                           (!range.Min.HasValue || minPrice >= range.Min.Value) &&
+                           (!range.Max.HasValue || minPrice <= range.Max.Value);
+                }));
+        }
+
+        if (selectedColors.Any())
+        {
+            query = query.Where(g =>
+                g.ChiTietGiays != null &&
+                g.ChiTietGiays.Any(ct =>
+                    !string.IsNullOrEmpty(ct.TenMau) &&
+                    selectedColors.Contains(ConvertTenMauToColor(ct.TenMau))
+                ));
+        }
+
+        giayList = query.OrderByDescending(g => IsFavorite(g.GiayId)).ToList();
+    }
+
+    private void OnBrandChanged(string brand, bool isChecked)
+    {
+        IsBrandSelected[brand] = isChecked;
+        FilterGiayList();
+    }
+
+    private void OnPriceRangeChanged(string label)
+    {
+        if (selectedPriceLabels.Contains(label))
+            selectedPriceLabels.Remove(label);
+        else
+            selectedPriceLabels.Add(label);
+
+        FilterGiayList();
+    }
+
+    private void OnColorFilterChanged(string color)
+    {
+        if (selectedColors.Contains(color))
+            selectedColors.Remove(color);
+        else
+            selectedColors.Add(color);
+
+        FilterGiayList();
+    }
+
+    private bool IsFavorite(Guid giayId) => danhSachYeuThich.Any(f => f.GiayId == giayId);
+
+    private void NavigateToDetail(Guid giayId) => manager.NavigateTo($"/detailShoeCategory/{giayId}");
+
+    private string ConvertTenMauToColor(string tenMau)
+    {
+        return tenMau.ToLower() switch
+        {
+            "đen" => "black",
+            "đỏ" => "red",
+            "trắng" => "white",
+            "vàng" => "yellow",
+            "xanh dương" => "blue",
+            "xanh lá" => "green",
+            _ => "grey"
+        };
+    }
+
+    private async Task ToggleFavorite(Guid giayId)
+    {
+        try
+        {
+            if (khachHangId == Guid.Empty)
+            {
+                await JS.InvokeVoidAsync("alert", "Bạn cần đăng nhập");
+                return;
+            }
+
+            bool isFav = IsFavorite(giayId);
+
+            await giayYeuThichService.ToggleFavoriteAsync(giayId, khachHangId);
+
+            if (isFav)
+            {
+                // bỏ yêu thích
+                var item = danhSachYeuThich.FirstOrDefault(x => x.GiayId == giayId);
+                if (item != null)
+                    danhSachYeuThich.Remove(item);
+
+                FavoriteState.Decrease();
+            }
+            else
+            {
+                // thêm yêu thích
+                danhSachYeuThich.Add(new GiayYeuThichDTO { GiayId = giayId });
+                FavoriteState.Increase();
+            }
+
+            FilterGiayList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+            await JS.InvokeVoidAsync("alert", "❌ Lỗi khi cập nhật yêu thích");
+        }
+    }
+
+    private string GetFullImageUrl(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return "/images/no-image.png";
+
+        if (path.StartsWith("http"))
+            return path;
+
+        return $"{BaseApiUrl.TrimEnd('/')}/{path.TrimStart('/')}";
+    }
+}

@@ -1,0 +1,146 @@
+﻿@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Linq.Expressions
+@if (IsOpen && _editContext != null)
+{
+    <div class="modal fade show d-block" style="background-color: rgba(0,0,0,0.5); z-index: 1050;">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <EditForm EditContext="_editContext" OnValidSubmit="HandleValidSubmit">
+                    <DataAnnotationsValidator />
+
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">@((IsEdit ? "Sửa chất liệu" : "Thêm chất liệu"))</h5>
+                        <button type="button" class="btn-close" @onclick="OnClose"></button>
+                    </div>
+
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Tên chất liệu</label>
+                            <InputText class="@GetInputClass(nameof(Model.TenChatLieu))" @bind-Value="Model.TenChatLieu" />
+                            <ValidationMessage For="@(() => Model.TenChatLieu)" class="validation-message" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Mô tả</label>
+                            <InputTextArea class="form-control" @bind-Value="Model.MoTa" />
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <InputCheckbox class="form-check-input" @bind-Value="Model.TrangThai" />
+                            <label class="form-check-label">Đang sử dụng</label>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" type="button" @onclick="OnClose">Hủy</button>
+                        <button class="btn btn-primary" type="submit">
+                            <i class="fa fa-floppy-disk"></i> Lưu
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public bool IsEdit { get; set; }
+    [Parameter] public string TenChatLieu { get; set; } = string.Empty;
+    [Parameter] public string MoTa { get; set; } = string.Empty;
+    [Parameter] public bool TrangThai { get; set; } = true;
+
+    [Parameter] public EventCallback<string> TenChatLieuChanged { get; set; }
+    [Parameter] public EventCallback<string> MoTaChanged { get; set; }
+    [Parameter] public EventCallback<bool> TrangThaiChanged { get; set; }
+
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<(string TenChatLieu, string MoTa, bool TrangThai)> OnSaved { get; set; }
+    [Parameter] public List<string> ExistingNames { get; set; } = new();
+    private ChatLieuInputModel Model { get; set; } = new();
+    private EditContext? _editContext;
+
+    protected override void OnParametersSet()
+    {
+        if (IsOpen)
+        {
+            Model = new ChatLieuInputModel
+            {
+                TenChatLieu = TenChatLieu,
+                MoTa = MoTa,
+                TrangThai = TrangThai
+            };
+
+            _editContext = new EditContext(Model);
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        Model.TenChatLieu = Model.TenChatLieu.Trim();
+
+        var isDuplicate = ExistingNames.Any(x =>
+            x.Trim().Equals(Model.TenChatLieu,
+            StringComparison.OrdinalIgnoreCase));
+
+        // Nếu đang sửa thì bỏ qua chính nó
+        if (IsEdit)
+        {
+            isDuplicate = ExistingNames
+                .Where(x => !x.Equals(TenChatLieu, StringComparison.OrdinalIgnoreCase))
+                .Any(x => x.Trim().Equals(Model.TenChatLieu,
+                StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (isDuplicate)
+        {
+            var messageStore = new ValidationMessageStore(_editContext);
+
+            messageStore.Clear();
+
+            messageStore.Add(
+                new FieldIdentifier(Model, nameof(Model.TenChatLieu)),
+                "Tên chất liệu đã tồn tại");
+
+            _editContext?.NotifyValidationStateChanged();
+            return;
+        }
+
+        await OnSaved.InvokeAsync((
+            Model.TenChatLieu,
+            Model.MoTa?.Trim() ?? "",
+            Model.TrangThai
+        ));
+    }
+    private bool HasError(string fieldName)
+    {
+        return _editContext != null &&
+               _editContext.GetValidationMessages(new FieldIdentifier(Model, fieldName)).Any();
+    }
+
+
+    private string GetInputClass(string fieldName)
+    {
+        return HasError(fieldName) ? "form-control is-invalid" : "form-control";
+    }
+
+    public class ChatLieuInputModel
+    {
+        [Required(ErrorMessage = "Tên chất liệu không được để trống")]
+        [StringLength(50, ErrorMessage = "Không vượt quá 50 ký tự")]
+        [RegularExpression(@"^(?!\s*$)[a-zA-ZÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚĂĐĨŨƠƯàáâãèéêìíòóôõùúăđĩũơưẠ-ỹ\s0-9]+$", ErrorMessage = "Chỉ chứa chữ cái tiếng Việt, số và khoảng trắng")]
+        public string TenChatLieu { get; set; } = string.Empty;
+
+        public string MoTa { get; set; } = string.Empty;
+
+        public bool TrangThai { get; set; } = true;
+    }
+}
+<style>
+    .validation-message {
+        color: red;
+        font-size: 1rem;
+    }
+</style>

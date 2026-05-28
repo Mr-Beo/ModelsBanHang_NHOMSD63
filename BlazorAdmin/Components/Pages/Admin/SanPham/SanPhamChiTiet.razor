@@ -1,0 +1,466 @@
+﻿@page "/giay/{giayid:guid}"
+@inject IGiayChiTietService giayChiTietService
+@inject IMauSacService mauSacService
+@inject IKichCoService kichCoService
+@inject IAnhService anhService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@using API.IService
+@using API.Models.DTO
+@using System.Globalization
+@using Humanizer
+@using Microsoft.AspNetCore.Components.Forms
+
+<h4 class="mb-3 fw-bold">Sản phẩm / @(danhSachChiTiet.FirstOrDefault()?.TenGiay ?? "Chi tiết sản phẩm")</h4>
+
+<!-- Form lọc -->
+<div class="mb-3">
+    <div class="row g-3">
+        <div class="col-md-3">
+            <label class="form-label">Lọc theo trạng thái</label>
+            <select class="form-select" @onchange="FilterByStatus">
+                <option value="">Tất cả</option>
+                <option value="True">Đang bán</option>
+                <option value="False">Ngừng bán</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Lọc theo màu sắc</label>
+            <InputSelect class="form-select" @bind-Value="filterMauSacId">
+                <option value="">Tất cả</option>
+                @foreach (var item in mauSacList)
+                {
+                    <option value="@item.MauSacId">@item.TenMau</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Lọc theo kích cỡ</label>
+            <InputSelect class="form-select" @bind-Value="filterKichCoId">
+                <option value="">Tất cả</option>
+                @foreach (var item in kichCoList)
+                {
+                    <option value="@item.KichCoId">@item.size</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-3 align-self-end">
+            <button class="btn btn-primary" @onclick="ApplyFilter">Áp dụng lọc</button>
+        </div>
+    </div>
+</div>
+
+<button class="btn btn-primary mb-3" @onclick="ShowAddModal">Thêm chi tiết mới</button>
+
+<table class="table table-bordered ">
+    <thead class="table-secondary">
+        <tr>
+            <th>Ảnh</th>
+            <th>Màu sắc</th>
+            <th>Size</th>
+            <th>Giá</th>
+            <th>Số lượng còn</th>
+            <th>Số lượng đặt</th>
+
+            <th style="width:180px">Trạng thái</th>
+            <th>Ngày tạo</th>
+            <th>Ngày sửa</th>
+            <th style="width:180px">Hành động</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in filteredDanhSachChiTiet)
+        {
+            <tr>
+                <td>
+                    <img src="@($"https://localhost:7246{item.AnhGiay ?? "/images/no-image.png"}")"
+                         style="height: 50px;"
+                         onerror="this.src='/images/no-image.png';" />
+                </td>
+                <td>@item.TenMau</td>
+                <td>@item.size</td>
+                <td>@item.Gia.ToString("N0", new CultureInfo("vi-VN"))</td>
+                <td>@item.SoLuongCon</td>
+                <td>@item.SoLuongDat</td>
+
+                <td>@(item.TrangThai ? "Đang bán" : "Ngừng bán")</td>
+                <td>@item.NgayTao.ToString("dd/MM/yyyy")</td>
+                <td>@item.NgaySua.ToString("dd/MM/yyyy")</td>
+                <td>
+                    <button class="btn btn-sm btn-warning me-1" @onclick="() => EditItem(item)">Sửa</button>
+                    <button class="btn btn-sm @(item.TrangThai ? "btn-danger" : "btn-success")"
+                            @onclick="() => ToggleStatus(item)">
+                        @(item.TrangThai ? "Ngừng bán" : "Đang bán")
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<!-- Modal thêm/sửa -->
+<div class="modal fade @(showModal ? "show d-block" : "")" id="giayChiTietModal" tabindex="-1" aria-hidden="@(!showModal)">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">@(isEditMode ? "Cập nhật" : "Thêm mới") chi tiết giày</h5>
+                <button type="button" class="btn-close" @onclick="CloseModal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <EditForm Model="currentItem" OnValidSubmit="HandleSave" id="giayChiTietForm">
+                    <DataAnnotationsValidator />
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Màu sắc <span class="text-danger">*</span></label>
+                            <InputSelect @bind-Value="currentItem.MauSacId" class="form-select">
+                                <option value="">Chọn màu sắc</option>
+                                @foreach (var item in mauSacList)
+                                {
+                                    <option value="@item.MauSacId">@item.TenMau</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="@(() => currentItem.MauSacId)" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Size <span class="text-danger">*</span></label>
+                            <InputSelect @bind-Value="currentItem.KichCoId" class="form-select">
+                                <option value="">Chọn size</option>
+                                @foreach (var item in kichCoList)
+                                {
+                                    <option value="@item.KichCoId">@item.size</option>
+                                }
+                            </InputSelect>
+                            <ValidationMessage For="@(() => currentItem.KichCoId)" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Giá <span class="text-danger">*</span></label>
+                            <InputNumber @bind-Value="currentItem.Gia" class="form-control" />
+                            <ValidationMessage For="@(() => currentItem.Gia)" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Số lượng còn <span class="text-danger">*</span></label>
+                            <InputNumber @bind-Value="currentItem.SoLuongCon" class="form-control" />
+                            <ValidationMessage For="@(() => currentItem.SoLuongCon)" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Số lượng đặt</label>
+                            <InputNumber @bind-Value="currentItem.SoLuongDat" class="form-control" />
+                            <ValidationMessage For="@(() => currentItem.SoLuongDat)" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Mô tả</label>
+                            <InputTextArea @bind-Value="currentItem.MoTa" class="form-control" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Trạng thái</label>
+                            <div class="form-check form-switch">
+                                <InputCheckbox @bind-Value="currentItem.TrangThai" class="form-check-input" />
+                                <label class="form-check-label">@(currentItem.TrangThai ? "Đang bán" : "Ngừng bán")</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Ảnh sản phẩm</label>
+                            <InputFile OnChange="HandleFileChange" accept="image/*" class="form-control" />
+                            @if (!string.IsNullOrEmpty(currentItem.AnhGiay))
+                            {
+                                <img src="@($"https://localhost:7246{currentItem.AnhGiay}")"
+                                     class="img-thumbnail mt-2"
+                                     style="max-height: 100px"
+                                     onerror="this.src='/images/no-image.png';" />
+                            }
+                        </div>
+                    </div>
+                    <div class="modal-footer mt-3">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseModal">Đóng</button>
+                        <button type="submit" class="btn btn-primary" form="giayChiTietForm">Lưu</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+</div>
+@if (showModal)
+{
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    [Parameter] public Guid giayid { get; set; }
+    private InputFileChangeEventArgs? pendingFile; // Lưu file ảnh tạm thời
+    private GiayChiTietDTO currentItem = new();
+    private List<MauSacDTO> mauSacList = new();
+    private List<KichCoDTO> kichCoList = new();
+    private List<GiayChiTietDTO> danhSachChiTiet = new();
+    private List<GiayChiTietDTO> filteredDanhSachChiTiet = new();
+    private bool isEditMode = false;
+    private bool showModal = false;
+    private string? filterStatus;
+    private Guid? filterMauSacId;
+    private Guid? filterKichCoId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            currentItem.GiayId = giayid;
+            mauSacList = (await mauSacService.GetAllAsync())?.ToList() ?? new List<MauSacDTO>();
+            kichCoList = (await kichCoService.GetAllAsync())?.ToList() ?? new List<KichCoDTO>();
+            danhSachChiTiet = (await giayChiTietService.GetByGiayIdAsync(giayid))?.ToList() ?? new List<GiayChiTietDTO>();
+            filteredDanhSachChiTiet = danhSachChiTiet;
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Lỗi khi khởi tạo dữ liệu: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("console.error", $"Chi tiết lỗi khởi tạo: {ex.ToString()}");
+        }
+    }
+
+    private async Task HandleSave()
+    {
+        try
+        {
+            // Kiểm tra validation trước khi lưu
+            if (!await ValidateForm()) return;
+
+            GiayChiTietDTO? savedItem = null;
+            if (isEditMode)
+            {
+                savedItem = await giayChiTietService.UpdateAsync(currentItem.GiayChiTietId, currentItem);
+                if (savedItem == null)
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", "Lỗi: Không thể cập nhật sản phẩm chi tiết.");
+                    return;
+                }
+                // Tự động ngừng bán nếu số lượng còn là 0
+                if (savedItem.SoLuongCon == 0 && savedItem.TrangThai)
+                {
+                    savedItem.TrangThai = false;
+                    savedItem = await giayChiTietService.UpdateAsync(savedItem.GiayChiTietId, savedItem);
+                }
+
+            }
+            else
+            {
+                savedItem = await giayChiTietService.CreateAsync(currentItem);
+                if (savedItem == null || savedItem.GiayChiTietId == Guid.Empty)
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", "Lỗi: Không thể tạo sản phẩm chi tiết hoặc GiayChiTietId không hợp lệ.");
+                    await JSRuntime.InvokeVoidAsync("console.error", $"CreateAsync failed. Response: {System.Text.Json.JsonSerializer.Serialize(savedItem)}");
+                    return;
+                }
+                // Cập nhật currentItem với savedItem để có GiayChiTietId
+                currentItem = savedItem;
+            }
+
+            // Upload ảnh nếu có file được chọn
+            if (pendingFile?.File != null)
+            {
+                await UploadAnh(pendingFile);
+            }
+
+            showModal = false;
+            danhSachChiTiet = (await giayChiTietService.GetByGiayIdAsync(giayid))?.ToList() ?? new List<GiayChiTietDTO>();
+            filteredDanhSachChiTiet = danhSachChiTiet;
+            await ApplyFilter();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Lỗi khi lưu: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("console.error", $"Chi tiết lỗi lưu: {ex.ToString()}");
+        }
+    }
+
+    private async Task<bool> ValidateForm()
+    {
+        if (currentItem.MauSacId == null || currentItem.MauSacId == Guid.Empty)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Vui lòng chọn màu sắc.");
+            return false;
+        }
+        if (currentItem.KichCoId == null || currentItem.KichCoId == Guid.Empty)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Vui lòng chọn kích cỡ.");
+            return false;
+        }
+        if (currentItem.Gia <= 0)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Giá phải lớn hơn 0.");
+            return false;
+        }
+        if (currentItem.SoLuongCon < 0)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Số lượng còn phải lớn hơn hoặc bằng 0.");
+            return false;
+        }
+        return true;
+    }
+
+    private async Task HandleFileChange(InputFileChangeEventArgs e)
+    {
+        pendingFile = e; // Lưu file tạm thời để xử lý sau khi lưu sản phẩm
+        StateHasChanged();
+    }
+
+    private async Task UploadAnh(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Vui lòng chọn một file ảnh.");
+            return;
+        }
+
+        if (file.Size > 5 * 1024 * 1024)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "File vượt quá 5MB.");
+            return;
+        }
+
+        if (currentItem.GiayChiTietId == Guid.Empty)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Lỗi: Không có GiayChiTietId để upload ảnh.");
+            await JSRuntime.InvokeVoidAsync("console.error", $"GiayChiTietId is empty. CurrentItem: {System.Text.Json.JsonSerializer.Serialize(currentItem)}");
+            return;
+        }
+
+        try
+        {
+            var anh = await anhService.UploadAsync(file, file.Name, currentItem.GiayChiTietId);
+            if (anh != null && !string.IsNullOrEmpty(anh.DuongDan))
+            {
+                currentItem.AnhGiay = anh.DuongDan;
+                // Cập nhật lại sản phẩm để lưu đường dẫn ảnh
+                var updatedItem = await giayChiTietService.UpdateAsync(currentItem.GiayChiTietId, currentItem);
+                if (updatedItem == null)
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", "Lỗi khi cập nhật sản phẩm chi tiết sau khi upload ảnh.");
+                }
+                else
+                {
+                    currentItem = updatedItem; // Cập nhật currentItem với dữ liệu mới nhất
+                }
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Upload ảnh thất bại: Không nhận được đường dẫn ảnh từ server.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Lỗi upload ảnh: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("console.error", $"Chi tiết lỗi upload: {ex.ToString()}");
+        }
+        pendingFile = null; // Xóa file tạm sau khi xử lý
+        StateHasChanged();
+    }
+
+    private async Task EditItem(GiayChiTietDTO item)
+    {
+        currentItem = new GiayChiTietDTO
+        {
+            GiayChiTietId = item.GiayChiTietId,
+            GiayId = item.GiayId,
+            MauSacId = item.MauSacId,
+            KichCoId = item.KichCoId,
+            Gia = item.Gia,
+            SoLuongCon = item.SoLuongCon,
+            SoLuongDat = item.SoLuongDat,
+            MoTa = item.MoTa,
+            TrangThai = item.TrangThai,
+            AnhGiay = item.AnhGiay,
+            NgayTao = item.NgayTao,
+            NgaySua = item.NgaySua,
+            size = item.size,
+            TenMau = item.TenMau,
+            TenGiay = item.TenGiay
+        };
+        isEditMode = true;
+        showModal = true;
+        pendingFile = null; // Reset file khi chỉnh sửa
+        StateHasChanged();
+    }
+    private async Task ToggleStatus(GiayChiTietDTO item)
+    {
+        try
+        {
+            if (!item.TrangThai && item.SoLuongCon == 0)
+            {
+                // Trường hợp đang là ngừng bán và muốn bật lại => cấm nếu hết hàng
+                await JSRuntime.InvokeVoidAsync("alert", "Đã hết hàng, không thể bán sản phẩm...");
+                return;
+            }
+
+            // Nếu số lượng còn = 0 => luôn phải là ngừng bán
+            if (item.SoLuongCon == 0)
+            {
+                item.TrangThai = false;
+            }
+            else
+            {
+                item.TrangThai = !item.TrangThai;
+            }
+
+            item.NgaySua = DateTime.UtcNow;
+            var updatedItem = await giayChiTietService.UpdateAsync(item.GiayChiTietId, item);
+            if (updatedItem != null)
+            {
+                item.SoLuongDat = updatedItem.SoLuongDat;
+                var index = danhSachChiTiet.FindIndex(x => x.GiayChiTietId == item.GiayChiTietId);
+                if (index >= 0)
+                {
+                    danhSachChiTiet[index] = updatedItem;
+                }
+                await ApplyFilter();
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Lỗi khi đổi trạng thái: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("console.error", $"Chi tiết lỗi đổi trạng thái: {ex}");
+        }
+    }
+
+    private void ShowAddModal()
+    {
+        currentItem = new GiayChiTietDTO { GiayId = giayid, TrangThai = true, SoLuongDat = 1 };
+        isEditMode = false;
+        pendingFile = null; // Reset file khi thêm mới
+        showModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        pendingFile = null; // Reset file khi đóng modal
+        StateHasChanged();
+    }
+
+    private async Task ApplyFilter()
+    {
+        try
+        {
+            danhSachChiTiet = (await giayChiTietService.GetByGiayIdAsync(giayid))?.ToList() ?? new List<GiayChiTietDTO>();
+            filteredDanhSachChiTiet = danhSachChiTiet.Where(item =>
+                (string.IsNullOrEmpty(filterStatus) || item.TrangThai.ToString() == filterStatus) &&
+                (!filterMauSacId.HasValue || item.MauSacId == filterMauSacId) &&
+                (!filterKichCoId.HasValue || item.KichCoId == filterKichCoId)
+            ).ToList();
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Lỗi khi lọc dữ liệu: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("console.error", $"Chi tiết lỗi lọc: {ex.ToString()}");
+        }
+    }
+
+    private async Task FilterByStatus(ChangeEventArgs e)
+    {
+        filterStatus = e.Value?.ToString();
+        await ApplyFilter();
+    }
+}

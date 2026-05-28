@@ -1,0 +1,163 @@
+﻿@page "/Admin/updatevoucher/{Id:guid}"
+@rendermode InteractiveServer
+
+@inject IVoucherService service
+@inject NavigationManager manager
+
+@using Data.Models
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Forms
+
+<h3 class="mb-4 text-primary">✏️ Cập nhật Voucher</h3>
+
+@if (editContext != null)
+{
+    <EditForm EditContext="editContext" OnValidSubmit="HandleValidSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="row g-4">
+            <div class="col-md-6">
+                <div class="border p-4 rounded shadow-sm bg-light">
+                    <div class="mb-3">
+                        <label class="form-label">Tên Voucher:</label>
+                        <InputText class="form-control" @bind-Value="voucher.TenVoucher" />
+                        <ValidationMessage For="@(() => voucher.TenVoucher)" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Ngày bắt đầu:</label>
+                        <InputDate class="form-control" @bind-Value="voucher.NgayBatDau" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Ngày kết thúc:</label>
+                        <InputDate class="form-control" @bind-Value="voucher.NgayKetThuc" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Giá trị giảm:</label>
+                        <div class="input-group">
+                            <InputNumber class="form-control" @bind-Value="GiaTriGiam" />
+                            <button class="btn @(IsPhanTram ? "btn-primary" : "btn-outline-secondary")"
+                                    type="button" @onclick="() => DoiKieuGiamGia(true)">
+                                %
+                            </button>
+                            <button class="btn @(!IsPhanTram ? "btn-primary" : "btn-outline-secondary")"
+                                    type="button" @onclick="() => DoiKieuGiamGia(false)">
+                                ₫
+                            </button>
+                        </div>
+                        <ValidationMessage For="@(() => voucher.PhanTram)" />
+                        <ValidationMessage For="@(() => voucher.SoTienGiam)" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Số lượng:</label>
+                        <InputNumber class="form-control" @bind-Value="voucher.SoLuong" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="border p-4 rounded shadow-sm bg-white">
+                    <div class="mb-3">
+                        <label class="form-label">Điều kiện giảm:</label>
+                        <div class="input-group">
+                            <InputNumber class="form-control" @bind-Value="voucher.DieuKienToiThieu" />
+                            <span class="input-group-text">₫</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Giảm tối đa:</label>
+                        <div class="input-group">
+                            <InputNumber class="form-control" @bind-Value="voucher.GiamToiDa" />
+                            <span class="input-group-text">₫</span>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-success w-100">💾 Lưu thay đổi</button>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+}
+else
+{
+    <div class="text-muted">Đang tải dữ liệu...</div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private Voucher voucher = new();
+    private bool IsPhanTram = true;
+
+    private EditContext? editContext;
+    private ValidationMessageStore? messageStore;
+
+    protected override async Task OnInitializedAsync()
+    {
+        voucher = await service.GetById(Id);
+        IsPhanTram = voucher.PhanTram > 0;
+
+        editContext = new EditContext(voucher);
+        messageStore = new ValidationMessageStore(editContext);
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        messageStore?.Clear();
+
+        if (IsPhanTram)
+        {
+            float tienGiamTuPhanTram = (voucher.PhanTram / 100f) * voucher.DieuKienToiThieu;
+            if (tienGiamTuPhanTram > voucher.GiamToiDa)
+            {
+                messageStore?.Add(() => voucher.PhanTram, "Phần trăm giảm vượt quá số tiền giảm tối đa.");
+                editContext?.NotifyValidationStateChanged();
+                return;
+            }
+        }
+        else
+        {
+            if (voucher.SoTienGiam > voucher.GiamToiDa)
+            {
+                messageStore?.Add(() => voucher.SoTienGiam, "Số tiền giảm không được lớn hơn giảm tối đa.");
+                editContext?.NotifyValidationStateChanged();
+                return;
+            }
+        }
+
+        await service.Update(voucher);
+        manager.NavigateTo("/Admin/voucher");
+    }
+
+    private float? GiaTriGiam
+    {
+        get => IsPhanTram ? voucher.PhanTram : voucher.SoTienGiam;
+        set
+        {
+            if (IsPhanTram)
+            {
+                voucher.PhanTram = value ?? 0;
+                voucher.SoTienGiam = 0;
+            }
+            else
+            {
+                voucher.SoTienGiam = value ?? 0;
+                voucher.PhanTram = 0;
+            }
+        }
+    }
+
+    private void DoiKieuGiamGia(bool laPhanTram)
+    {
+        if (IsPhanTram != laPhanTram)
+        {
+            IsPhanTram = laPhanTram;
+            GiaTriGiam = null;
+        }
+    }
+}

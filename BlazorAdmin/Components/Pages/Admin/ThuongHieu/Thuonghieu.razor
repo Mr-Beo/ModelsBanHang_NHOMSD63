@@ -1,0 +1,605 @@
+﻿@page "/ThuongHieu"
+@using Data.Models
+@using BlazorAdmin.Service.IService
+@using System.ComponentModel.DataAnnotations
+
+@inject IJSRuntime JS
+@inject IThuongHieuService ThuongHieuService
+
+<link href="/css/site.css" rel="stylesheet" />
+
+<style>
+
+    .toast-custom-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 99999;
+    }
+
+    .toast-custom {
+        min-width: 320px;
+        max-width: 420px;
+        padding: 14px 18px;
+        border-radius: 12px;
+        color: white;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        animation: slideIn 0.3s ease;
+    }
+
+    .toast-success {
+        background: linear-gradient(135deg, #16a34a, #22c55e);
+    }
+
+    .toast-error {
+        background: linear-gradient(135deg, #dc2626, #ef4444);
+    }
+
+    .toast-icon {
+        font-size: 24px;
+    }
+
+    .toast-content {
+        flex: 1;
+        font-size: 15px;
+        font-weight: 500;
+    }
+
+    .toast-close {
+        border: none;
+        background: transparent;
+        color: white;
+        font-size: 18px;
+        cursor: pointer;
+    }
+
+        .toast-close:hover {
+            opacity: 0.8;
+        }
+
+    @@keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    .popup-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    }
+
+    .popup-form {
+        background: white;
+        width: 500px;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+</style>
+
+<div class="container mt-5">
+
+    <h4 class="mb-3">🏢 Quản lý thương hiệu</h4>
+
+    <div class="row mb-4 text-center">
+
+        <div class="col-md-4">
+            <div class="bg-light border rounded p-4 shadow-sm h-100">
+                <h6 class="text-muted">Tổng số thương hiệu</h6>
+                <h4>@ThuongHieus.Count</h4>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="bg-light border rounded p-4 shadow-sm h-100">
+                <h6 class="text-muted">Thương hiệu đang hoạt động</h6>
+                <h4>@ThuongHieus.Count(v => v.TrangThai)</h4>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="bg-light border rounded p-4 shadow-sm h-100">
+                <h6 class="text-muted">Thương hiệu ngừng hoạt động</h6>
+                <h4>@ThuongHieus.Count(v => !v.TrangThai)</h4>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="card shadow-sm p-4">
+
+        <!-- Search -->
+        <div class="d-flex justify-content-between mb-3">
+
+            <input type="text"
+                   class="form-control w-50"
+                   placeholder="🔍 Tìm kiếm thương hiệu..."
+                   @bind="SearchText"
+                   @bind:event="oninput" />
+
+            <button class="btn btn-outline-primary"
+                    @onclick="ShowAddModal">
+                ➕ Thêm thương hiệu
+            </button>
+
+        </div>
+
+        <!-- Table -->
+        <table class="table table-bordered table-hover">
+
+            <thead class="table-light">
+                <tr>
+                    <th style="width:60px;">STT</th>
+                    <th>Tên thương hiệu</th>
+                    <th>Email</th>
+                    <th>SĐT</th>
+                    <th>Địa chỉ</th>
+                    <th>Trạng thái</th>
+                    <th style="width:120px;">Chức năng</th>
+                </tr>
+            </thead>
+
+            <tbody>
+
+                @if (!FilteredThuongHieus.Any())
+                {
+                    <tr>
+                        <td colspan="7"
+                            class="text-center text-muted">
+                            Không tìm thấy thương hiệu nào.
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var (item, index)
+                                    in FilteredThuongHieus.Select((x, i) => (x, i + 1)))
+                    {
+                        <tr>
+
+                            <td>@index</td>
+
+                            <td>@item.TenThuongHieu</td>
+
+                            <td>@item.Email</td>
+
+                            <td>@item.SDT</td>
+
+                            <td>@item.DiaChi</td>
+
+                            <td>
+                                <span class="badge bg-@(item.TrangThai ? "success" : "secondary")">
+                                    @(item.TrangThai ? "Đang hoạt động" : "Ngừng hoạt động")
+                                </span>
+                            </td>
+
+                            <td>
+
+                                <i class="bi bi-pencil-square text-primary"
+                                   style="cursor:pointer"
+                                   title="Sửa"
+                                   @onclick="() => Edit(item)">
+                                </i>
+
+                                <i class="bi bi-trash text-danger ms-2"
+                                   style="cursor:pointer"
+                                   title="Xóa"
+                                   @onclick="() => Delete(item.ThuongHieuId)">
+                                </i>
+
+                            </td>
+
+                        </tr>
+                    }
+                }
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+    <!-- Modal -->
+    @if (IsModalVisible)
+    {
+        <div class="popup-overlay">
+
+            <div class="popup-form">
+
+                <EditForm Model="Model"
+                          OnValidSubmit="HandleValidSubmit">
+
+                    <DataAnnotationsValidator />
+
+                    <div class="modal-header">
+
+                        <h5 class="modal-title">
+                            @ModalTitle
+                        </h5>
+
+                        <button type="button"
+                                class="btn-close"
+                                @onclick="CloseModal">
+                        </button>
+
+                    </div>
+
+                    <div class="modal-body">
+
+                        <!-- Tên -->
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Tên thương hiệu
+                            </label>
+
+                            <InputText class="form-control"
+                                       @bind-Value="Model.TenThuongHieu" />
+
+                        </div>
+
+                        <!-- Email -->
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Email
+                            </label>
+
+                            <InputText type="email"
+                                       class="form-control"
+                                       @bind-Value="Model.Email" />
+
+                        </div>
+
+                        <!-- SĐT -->
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                SĐT
+                            </label>
+
+                            <InputText class="form-control"
+                                       @bind-Value="Model.SDT" />
+
+                        </div>
+
+                        <!-- Địa chỉ -->
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Địa chỉ
+                            </label>
+
+                            <InputText class="form-control"
+                                       @bind-Value="Model.DiaChi" />
+
+                        </div>
+
+                        <!-- Mô tả -->
+                        <div class="mb-3">
+
+                            <label class="form-label">
+                                Mô tả
+                            </label>
+
+                            <InputTextArea class="form-control"
+                                           rows="2"
+                                           @bind-Value="Model.MoTa" />
+
+                        </div>
+
+                        <!-- Trạng thái -->
+                        <div class="form-check mb-3">
+
+                            <InputCheckbox class="form-check-input"
+                                           @bind-Value="Model.TrangThai" />
+
+                            <label class="form-check-label">
+                                Đang hoạt động
+                            </label>
+
+                        </div>
+
+                    </div>
+
+                    <div class="modal-footer">
+
+                        <button type="submit"
+                                class="btn btn-success">
+                            <i class="bi bi-save"></i>
+                            Lưu
+                        </button>
+
+                        <button type="button"
+                                class="btn btn-secondary"
+                                @onclick="CloseModal">
+                            Hủy
+                        </button>
+
+                    </div>
+
+                </EditForm>
+
+            </div>
+
+        </div>
+    }
+
+    <!-- Toast -->
+    <div class="toast-custom-container">
+
+        @if (!string.IsNullOrEmpty(ToastMessage))
+        {
+            <div class="toast-custom @(ToastType == "error" ? "toast-error" : "toast-success")">
+
+                <div class="toast-icon">
+
+                    @if (ToastType == "success")
+                    {
+                        <i class="bi bi-check-circle-fill"></i>
+                    }
+                    else
+                    {
+                        <i class="bi bi-exclamation-circle-fill"></i>
+                    }
+
+                </div>
+
+                <div class="toast-content">
+                    @ToastMessage
+                </div>
+
+                <button class="toast-close"
+                        @onclick="() => ToastMessage = null">
+                    ✕
+                </button>
+
+            </div>
+        }
+
+    </div>
+
+</div>
+
+@code {
+
+    private List<ThuongHieu> ThuongHieus = new();
+
+    private ThuongHieu Model = new();
+
+    private bool IsModalVisible = false;
+
+    private string ModalTitle = "Thêm thương hiệu";
+
+    private string SearchText = string.Empty;
+
+    private string? ToastMessage;
+
+    private string ToastType = "success";
+
+    private IEnumerable<ThuongHieu> FilteredThuongHieus =>
+        string.IsNullOrWhiteSpace(SearchText)
+        ? ThuongHieus
+        : ThuongHieus.Where(x =>
+
+            (x.TenThuongHieu ?? "")
+            .Contains(SearchText, StringComparison.OrdinalIgnoreCase)
+
+            ||
+
+            (x.Email ?? "")
+            .Contains(SearchText, StringComparison.OrdinalIgnoreCase)
+
+            ||
+
+            (x.SDT ?? "")
+            .Contains(SearchText)
+
+        );
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        ThuongHieus = await ThuongHieuService.GetAllAsync();
+    }
+
+    private void ShowAddModal()
+    {
+        Model = new ThuongHieu
+        {
+            TrangThai = true
+        };
+
+        ModalTitle = "Thêm thương hiệu";
+
+        IsModalVisible = true;
+    }
+
+    private void Edit(ThuongHieu item)
+    {
+        Model = new ThuongHieu
+        {
+            ThuongHieuId = item.ThuongHieuId,
+            TenThuongHieu = item.TenThuongHieu,
+            Email = item.Email,
+            SDT = item.SDT,
+            DiaChi = item.DiaChi,
+            MoTa = item.MoTa,
+            TrangThai = item.TrangThai
+        };
+
+        ModalTitle = "Sửa thương hiệu";
+
+        IsModalVisible = true;
+    }
+
+    private async Task Delete(Guid id)
+    {
+        await ThuongHieuService.DeleteAsync(id);
+
+        await LoadDataAsync();
+
+        await ShowSuccess("Xóa thương hiệu thành công!");
+    }
+
+    private void CloseModal()
+    {
+        IsModalVisible = false;
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        Model.TenThuongHieu = Model.TenThuongHieu?.Trim() ?? "";
+        Model.Email = Model.Email?.Trim() ?? "";
+        Model.SDT = Model.SDT?.Trim() ?? "";
+
+        // Validate tên
+        if (string.IsNullOrWhiteSpace(Model.TenThuongHieu))
+        {
+            await ShowError("Tên thương hiệu không được để trống!");
+            return;
+        }
+
+        // Validate email
+        if (!string.IsNullOrWhiteSpace(Model.Email))
+        {
+            var emailValidator = new EmailAddressAttribute();
+
+            if (!emailValidator.IsValid(Model.Email))
+            {
+                await ShowError("Email không đúng định dạng!");
+                return;
+            }
+        }
+
+        // Validate SĐT
+        if (!string.IsNullOrWhiteSpace(Model.SDT))
+        {
+            bool isPhoneValid =
+                System.Text.RegularExpressions.Regex
+                .IsMatch(Model.SDT, @"^(0|\+84)[0-9]{9}$");
+
+            if (!isPhoneValid)
+            {
+                await ShowError("Số điện thoại không hợp lệ!");
+                return;
+            }
+        }
+
+        // Check trùng tên
+        bool duplicateName = ThuongHieus
+            .Where(x => x.ThuongHieuId != Model.ThuongHieuId)
+            .Any(x =>
+                (x.TenThuongHieu ?? "")
+                .Trim()
+                .Equals(Model.TenThuongHieu,
+                StringComparison.OrdinalIgnoreCase));
+
+        if (duplicateName)
+        {
+            await ShowError("Tên thương hiệu đã tồn tại!");
+            return;
+        }
+
+        // Check trùng email
+        if (!string.IsNullOrWhiteSpace(Model.Email))
+        {
+            bool duplicateEmail = ThuongHieus
+                .Where(x => x.ThuongHieuId != Model.ThuongHieuId)
+                .Any(x =>
+                    (x.Email ?? "")
+                    .Trim()
+                    .Equals(Model.Email,
+                    StringComparison.OrdinalIgnoreCase));
+
+            if (duplicateEmail)
+            {
+                await ShowError("Email đã tồn tại!");
+                return;
+            }
+        }
+
+        // Check trùng SĐT
+        if (!string.IsNullOrWhiteSpace(Model.SDT))
+        {
+            bool duplicatePhone = ThuongHieus
+                .Where(x => x.ThuongHieuId != Model.ThuongHieuId)
+                .Any(x =>
+                    (x.SDT ?? "")
+                    .Trim()
+                    .Equals(Model.SDT,
+                    StringComparison.OrdinalIgnoreCase));
+
+            if (duplicatePhone)
+            {
+                await ShowError("Số điện thoại đã tồn tại!");
+                return;
+            }
+        }
+
+        if (Model.ThuongHieuId == Guid.Empty)
+        {
+            await ThuongHieuService.CreateAsync(Model);
+
+            await ShowSuccess("Thêm thương hiệu thành công!");
+        }
+        else
+        {
+            await ThuongHieuService.UpdateAsync(Model);
+
+            await ShowSuccess("Cập nhật thương hiệu thành công!");
+        }
+
+        IsModalVisible = false;
+
+        await LoadDataAsync();
+    }
+
+    private async Task ShowError(string message)
+    {
+        ToastType = "error";
+
+        ToastMessage = message;
+
+        StateHasChanged();
+
+        await Task.Delay(3000);
+
+        ToastMessage = null;
+
+        StateHasChanged();
+    }
+
+    private async Task ShowSuccess(string message)
+    {
+        ToastType = "success";
+
+        ToastMessage = message;
+
+        StateHasChanged();
+
+        await Task.Delay(3000);
+
+        ToastMessage = null;
+
+        StateHasChanged();
+    }
+
+}

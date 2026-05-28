@@ -1,0 +1,432 @@
+﻿@page "/ThemDotGiamGia"
+@page "/ThemDotGiamGia/{Id:guid}"
+
+@using Data.Models
+@using API.Models.DTO
+@using BlazorAdmin.Service.IService
+
+@inject IGiamGiaService GiamGiaService
+@inject IGiayChiTietService GiayChiTietService
+@inject NavigationManager Navigation
+
+@rendermode InteractiveServer
+
+<h3 class="mb-3">
+    <i class="bi bi-plus-circle"></i>
+    @(Id.HasValue ? "Chỉnh sửa Đợt Khuyến Mại" : "Thêm Đợt Khuyến Mại")
+</h3>
+
+<div class="card shadow-sm p-4">
+
+    <EditForm Model="dot" OnValidSubmit="HandleSubmit">
+
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">
+                @errorMessage
+            </div>
+        }
+
+        <!-- TÊN -->
+        <div class="mb-3">
+            <label class="form-label">
+                Tên đợt
+            </label>
+
+            <InputText class="form-control"
+                       @bind-Value="dot.TenGiamGia" />
+
+            <ValidationMessage For="@(() => dot.TenGiamGia)" />
+        </div>
+
+        <!-- PHẦN TRĂM -->
+        <div class="mb-3">
+
+            <label class="form-label">
+                Giảm (%)
+            </label>
+
+            <InputNumber class="form-control"
+                         @bind-Value="dot.PhanTramKhuyenMai" />
+
+            <ValidationMessage For="@(() => dot.PhanTramKhuyenMai)" />
+
+        </div>
+
+        <!-- THỜI GIAN -->
+        <div class="mb-3">
+
+            <label class="form-label">
+                Thời gian áp dụng
+            </label>
+
+            <div class="d-flex gap-2">
+
+                <div class="flex-fill">
+
+                    <InputDate class="form-control"
+                               @bind-Value="dot.NgayBatDau" />
+
+                    <ValidationMessage For="@(() => dot.NgayBatDau)" />
+
+                </div>
+
+                <div class="flex-fill">
+
+                    <InputDate class="form-control"
+                               @bind-Value="dot.NgayKetThuc" />
+
+                    <ValidationMessage For="@(() => dot.NgayKetThuc)" />
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- SEARCH -->
+        <div class="mb-3">
+
+            <label class="form-label fw-bold">
+                Tìm kiếm sản phẩm
+            </label>
+
+            <div class="input-group">
+
+                <span class="input-group-text">
+                    🔍
+                </span>
+
+                <input class="form-control"
+                       placeholder="Tìm theo tên giày, màu, size, ID..."
+                       @bind="searchTerm"
+                       @bind:event="oninput" />
+
+            </div>
+
+        </div>
+
+        <!-- DANH SÁCH GIÀY -->
+        <div class="mb-3">
+
+            <label class="form-label fw-bold">
+                Sản phẩm được áp dụng (theo màu/số)
+            </label>
+
+            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-2">
+
+                @foreach (var sp in FilteredDanhSachChiTiet)
+                {
+                    var isChecked = chiTietChon.Contains(sp.GiayChiTietId);
+
+                    // Kiểm tra đã có khuyến mại chưa
+                    var dangCoKhuyenMai = allDotGiamGia.Any(x =>
+                    x.TrangThai &&
+                    x.NgayKetThuc >= DateTime.Today &&
+                    x.GiamGiaId != dot.GiamGiaId &&
+                    x.GiayDotGiamGias.Any(g =>
+                    g.GiayChiTietId == sp.GiayChiTietId));
+
+                    <div class="col">
+
+                        <label class="form-check-label w-100 border rounded p-2 d-flex align-items-start gap-2
+                            @(isChecked ? "bg-light border-primary" : "")
+                            @(dangCoKhuyenMai ? "opacity-50 bg-secondary-subtle" : "")"
+                               style="cursor:@(dangCoKhuyenMai ? "not-allowed" : "pointer");">
+
+                            <input type="checkbox"
+                                   class="form-check-input mt-1"
+                                   checked="@isChecked"
+                                   disabled="@dangCoKhuyenMai"
+                                   @onchange="() => ToggleChiTiet(sp.GiayChiTietId)" />
+
+                            <div>
+
+                                <div class="fw-bold">
+                                    @sp.TenGiay
+                                </div>
+
+                                <div class="small text-muted">
+
+                                    ID:
+                                    @sp.GiayChiTietId
+                                    <br />
+
+                                    Màu:
+                                    @sp.TenMau
+                                    |
+                                    Size:
+                                    @sp.size
+                                    <br />
+
+                                    @if (sp.DaGiamGia)
+                                    {
+                                        <span>
+                                            <del>
+                                                @sp.GiaGoc.ToString("N0") đ
+                                            </del>
+
+                                            ➝
+
+                                            <strong class="text-danger">
+                                                @sp.Gia.ToString("N0") đ
+                                            </strong>
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span>
+                                            Giá:
+                                            @sp.Gia.ToString("N0") đ
+                                        </span>
+                                    }
+
+                                    @if (dangCoKhuyenMai)
+                                    {
+                                        <div class="text-danger fw-bold mt-1">
+                                            Đã nằm trong đợt giảm giá khác
+                                        </div>
+                                    }
+
+                                </div>
+
+                            </div>
+
+                        </label>
+
+                    </div>
+                }
+
+            </div>
+
+        </div>
+
+        <!-- BUTTON -->
+        <!-- BUTTON FLOAT -->
+        <div class="position-fixed bottom-0 end-0 p-3"
+             style="z-index:9999;">
+
+            <div class="bg-white border shadow rounded-3 p-2 d-flex gap-2">
+
+                <button type="submit"
+                        class="btn btn-primary">
+
+                    <i class="bi bi-save"></i>
+                    Lưu
+
+                </button>
+
+                <button type="button"
+                        class="btn btn-secondary"
+                        @onclick='() => Navigation.NavigateTo("/DotGiamGia")'>
+
+                    <i class="bi bi-arrow-left-circle"></i>
+                    Quay lại
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </EditForm>
+
+</div>
+
+@code {
+
+    [Parameter]
+    public Guid? Id { get; set; }
+
+    private GiamGiaCreateDTO dot = new();
+
+    private string? errorMessage;
+
+    private string searchTerm = "";
+
+    private List<GiayChiTietDTO> danhSachChiTiet = new();
+
+    private List<Guid> chiTietChon = new();
+
+    private List<GiamGia> allDotGiamGia = new();
+
+    // SEARCH
+    private List<GiayChiTietDTO> FilteredDanhSachChiTiet =>
+        danhSachChiTiet.Where(sp =>
+
+            string.IsNullOrWhiteSpace(searchTerm)
+
+            // ID
+            || sp.GiayChiTietId.ToString()
+                .Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
+
+            // Tên giày
+            || (sp.TenGiay?.Contains(searchTerm,
+                StringComparison.OrdinalIgnoreCase) ?? false)
+
+            // Tên màu
+            || (sp.TenMau?.Contains(searchTerm,
+                StringComparison.OrdinalIgnoreCase) ?? false)
+
+            // Size
+            || sp.size.ToString()
+                .Contains(searchTerm, StringComparison.OrdinalIgnoreCase)
+
+        ).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        danhSachChiTiet = await GiayChiTietService.GetAllAsync();
+
+        // Load tất cả đợt giảm giá
+        allDotGiamGia = (await GiamGiaService.GetAllAsync()).ToList();
+
+        if (Id.HasValue)
+        {
+            var existing = await GiamGiaService.GetByIdAsync(Id.Value);
+
+            if (existing != null)
+            {
+                dot = new GiamGiaCreateDTO
+                {
+                    GiamGiaId = existing.GiamGiaId,
+                    TenGiamGia = existing.TenGiamGia,
+                    SanPhamKhuyenMai = existing.SanPhamKhuyenMai,
+                    PhanTramKhuyenMai = existing.PhanTramKhuyenMai,
+                    NgayBatDau = existing.NgayBatDau,
+                    NgayKetThuc = existing.NgayKetThuc,
+                    TrangThai = existing.TrangThai,
+
+                    GiayChiTietIds = existing.GiayDotGiamGias?
+                        .Where(x => x.GiayChiTietId.HasValue)
+                        .Select(x => x.GiayChiTietId!.Value)
+                        .ToList() ?? new()
+                };
+
+                chiTietChon = dot.GiayChiTietIds.ToList();
+            }
+        }
+        else
+        {
+            dot = new GiamGiaCreateDTO
+            {
+                NgayBatDau = DateTime.Today,
+                NgayKetThuc = DateTime.Today.AddDays(7),
+                TrangThai = true,
+                SanPhamKhuyenMai = "Nhiều sản phẩm"
+            };
+        }
+    }
+
+    private void ToggleChiTiet(Guid id)
+    {
+        if (chiTietChon.Contains(id))
+            chiTietChon.Remove(id);
+        else
+            chiTietChon.Add(id);
+    }
+
+    private async Task HandleSubmit()
+    {
+        errorMessage = null;
+
+        // Validate ngày
+        if (dot.NgayKetThuc < dot.NgayBatDau)
+        {
+            errorMessage = "Ngày kết thúc phải sau ngày bắt đầu.";
+            return;
+        }
+
+        // Load tất cả đợt
+        var dsDot = await GiamGiaService.GetAllAsync();
+
+        // Check trùng tên
+        bool isDuplicate = dsDot.Any(x =>
+            x.TenGiamGia.Trim().ToLower()
+            == dot.TenGiamGia.Trim().ToLower()
+            && x.GiamGiaId != dot.GiamGiaId);
+
+        if (isDuplicate)
+        {
+            errorMessage = "Tên đợt giảm giá đã tồn tại.";
+            return;
+        }
+
+        // CREATE
+        if (!Id.HasValue)
+        {
+            dot.GiayChiTietIds = chiTietChon;
+
+            var response = await GiamGiaService.AddAsync(dot);
+
+            if (response.IsSuccessStatusCode)
+            {
+                Navigation.NavigateTo("/DotGiamGia");
+            }
+            else
+            {
+                var content = await response.Content.ReadAsStringAsync();
+
+                errorMessage = $"Không lưu được: {content}";
+            }
+        }
+        else
+        {
+            // UPDATE
+            var basicDto = new GiamGiaCreateDTO
+            {
+                GiamGiaId = dot.GiamGiaId,
+                TenGiamGia = dot.TenGiamGia,
+                SanPhamKhuyenMai = dot.SanPhamKhuyenMai,
+                PhanTramKhuyenMai = dot.PhanTramKhuyenMai,
+                NgayBatDau = dot.NgayBatDau,
+                NgayKetThuc = dot.NgayKetThuc,
+                TrangThai = dot.TrangThai,
+                GiayChiTietIds = new List<Guid>()
+            };
+
+            var response = await GiamGiaService
+                .UpdateAsyncReturnResponse(basicDto);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+
+                errorMessage = $"Không lưu được: {content}";
+                return;
+            }
+
+            // SO SÁNH DANH SÁCH
+            var cu = dot.GiayChiTietIds ?? new();
+
+            var moi = chiTietChon;
+
+            var canRemove = cu.Except(moi).ToList();
+
+            var canAdd = moi.Except(cu).ToList();
+
+            foreach (var id in canRemove)
+            {
+                await GiamGiaService.RemoveGiayFromDotGiamGia(
+                    dot.GiamGiaId,
+                    id);
+            }
+
+            foreach (var id in canAdd)
+            {
+                await GiamGiaService.AddGiayToDotGiamGia(
+                    dot.GiamGiaId,
+                    id);
+            }
+
+            Navigation.NavigateTo("/DotGiamGia");
+        }
+    }
+
+}
+<style>
+    padding-bottom:100px;
+</style>

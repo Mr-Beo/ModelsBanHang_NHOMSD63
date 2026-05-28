@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="css/Home.css">
+    <link rel="stylesheet" href="css/Main.css">
+    <link rel="stylesheet" href="css//BanHang.css">
+    <link rel="stylesheet" href="css/BanHang.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
+    <script src="https://code.angularjs.org/1.8.2/angular-route.js"></script>
+    <title>Document</title>
+</head>
+
+<body>
+    <div class="sidebar">
+        <div class="logo">
+
+        </div>
+        <ul>
+            <ul>
+                <ul>
+                    <li class="active"><a href="#!ThongKe"><span>📊</span> Thống kê</a></li>
+                    <li> <a href="#!BanHang" style="text-decoration: none;"><span>🛒</span> Bán hàng tại quầy</a></li>
+                    <li><span>📦</span> Quản lý đơn hàng</li>
+                    <li>
+                        <span>👟</span> Quản lý sản phẩm
+                        <span class="arrow">&#9660;</span>
+                    </li>
+                    <li><span>↩️</span> Trả hàng</li>
+                    <li>
+                        <span>🏷️</span> Giảm giá
+                        <span class="arrow">&#9660;</span>
+                    </li>
+                    <li>
+                        <span>👤</span> Tài khoản
+                        <span class="arrow">&#9660;</span>
+                    </li>
+                </ul>
+            </ul>
+        </ul>
+    </div>
+    <div class="main">
+        <div class="header">
+            <div class="user-area">
+                <span class="bell">🔔<span class="badge">2</span></span>
+                <img class="avatar" src="https://randomuser.me/api/portraits/women/44.jpg" alt="user" />
+            </div>
+        </div>
+        <div class="dashboard-content" ng-app = "Admin">
+            <div ng-view ></div>
+        </div>
+    </div>
+    <script src="route.js"></script>
+</body>
+
+</html>

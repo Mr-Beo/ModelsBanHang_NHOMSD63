@@ -1,0 +1,115 @@
+﻿<div class="sidebar">
+    <div class="logo">
+        <img src="img/LOGO1.png" alt="Logo" style="width: 200px; height: 50px;" />
+    </div>
+    <div class="submenu-wrapper">
+    <ul>
+        <li>
+            <NavLink class="nav-link" href="/thongke">
+                <span class="menu-label">📊 Thống kê</span>
+            </NavLink>
+        </li>
+
+        <li>
+            <NavLink class="nav-link" href="/BanHang">
+                <span class="menu-label">🛒 Bán hàng tại quầy</span>
+            </NavLink>
+        </li>
+
+        <li>
+            <NavLink class="nav-link" href="admin/hoadon">
+                <span class="menu-label">📦 Quản lý đơn hàng</span>
+            </NavLink>
+        </li>
+
+        <!-- Quản lý sản phẩm -->
+        <li onclick="toggleSubMenu('submenu-sanpham')">
+            <span class="menu-label">👟 Quản lý sản phẩm</span>
+            <span class="arrow">&#9660;</span>
+        </li>
+        <ul id="submenu-sanpham" class="submenu">
+            <li><NavLink class="nav-link" href="/SanPham">📦 Sản phẩm</NavLink></li>
+            <li><NavLink class="nav-link" href="/DeGiay">🧱 Đế giày</NavLink></li>
+            <li><NavLink class="nav-link" href="/TheLoaiGiay">👞 Loại giày</NavLink></li>
+            <li><NavLink class="nav-link" href="/ChatLieu">🧵 Chất liệu</NavLink></li>
+            <li><NavLink class="nav-link" href="/KieuDang">✨ kiểu dáng</NavLink></li>
+            <li><NavLink class="nav-link" href="/ThuongHieu">🏷️ Thương hiệu</NavLink></li>
+            <li><NavLink class="nav-link" href="/MauSac">🏷️ Màu sắc</NavLink></li>
+
+        </ul>
+
+        <li>
+            <NavLink class="nav-link" href="/TraHang">
+                <span class="menu-label">↩️ Trả hàng</span>
+            </NavLink>
+        </li>
+
+        <!-- Giảm giá -->
+        <li onclick="toggleSubMenu('submenu-giamgia')">
+            <span class="menu-label">🏷️ Giảm giá</span>
+            <span class="arrow">&#9660;</span>
+        </li>
+        <ul id="submenu-giamgia" class="submenu">
+            <li><NavLink class="nav-link" href="/Admin/voucher">🎟️ Voucher</NavLink></li>
+            <li><NavLink class="nav-link" href="/DotGiamGia">📅 Đợt giảm giá</NavLink></li>
+        </ul>
+
+        <!-- Tài khoản -->
+        <li onclick="toggleSubMenu('submenu-taikhoan')">
+            <span class="menu-label">👤 Tài khoản</span>
+            <span class="arrow">&#9660;</span>
+        </li>
+        <ul id="submenu-taikhoan" class="submenu">
+            
+            <li><NavLink class="nav-link" href="/QuanLyNhanVien">👨‍💼 Nhân viên</NavLink></li>
+            <li><NavLink class="nav-link" href="/KhachHang">🧍‍♂️ Khách hàng</NavLink></li>
+        </ul>
+    </ul>
+    </div>
+</div>
+
+<style>
+    .sidebar .submenu li {
+        padding-left: 50px;
+        font-size: 13px;
+    }
+
+    /* Scrollable submenu wrapper */
+    .submenu-wrapper {
+        max-height: 775px; /* hoặc 100vh nếu muốn full chiều cao màn hình */
+        overflow-y: auto;
+        scrollbar-width: thin; /* Firefox */
+        scrollbar-color: #888 #f1f1f1;
+    }
+
+        /* Tùy chỉnh scrollbar (Chrome, Edge) */
+        .submenu-wrapper::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .submenu-wrapper::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 5px;
+        }
+
+            .submenu-wrapper::-webkit-scrollbar-thumb:hover {
+                background: #555;
+            }
+
+    /* Khoảng cách submenu */
+    .sidebar .submenu li {
+        padding-left: 50px;
+        font-size: 13px;
+    }
+
+    /* Để submenu không làm vỡ layout */
+    .submenu {
+        margin: 0;
+        padding-left: 10px;
+        list-style: none;
+
+</style>
+
+<script src="Js/Nav.js">
+
+</script>

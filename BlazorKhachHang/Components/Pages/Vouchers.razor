@@ -1,0 +1,124 @@
+﻿@page "/vouchers"
+@using Data.Models
+@using BlazorKhachHang.Service.IService
+@inject IVoucherService voucherService
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+<link href="/css/home.css" rel="stylesheet" />
+
+<h2 class="text-center my-4">🎁 Voucher khuyến mãi</h2>
+
+<div class="container">
+    <div class="row g-4">
+
+        @if (danhSachVoucher.Any())
+        {
+            @foreach (var item in danhSachVoucher)
+            {
+                var conHan = item.NgayKetThuc > DateTime.Now;
+
+                <div class="col-md-4">
+                    <div class="card voucher-card h-100 border-0 shadow-sm">
+
+                        <span class="status-badge badge bg-@(conHan ? "success" : "danger")">
+                            @(conHan ? "Còn hiệu lực" : "Hết hạn")
+                        </span>
+
+                        <div class="voucher-header text-center">
+                            <h1 class="mb-0">@item.PhanTram%</h1>
+                            <small>GIẢM GIÁ</small>
+                        </div>
+
+                        <div class="card-body d-flex flex-column">
+
+                            <h5 class="fw-bold">@item.TenVoucher</h5>
+
+                            <p class="text-muted">
+                                Ưu đãi dành riêng cho bạn
+                            </p>
+
+                            <div class="flex-grow-1">
+
+                     
+
+                                <p>
+                                    <b>Giảm tối đa:</b>
+                                    @item.GiamToiDa.ToString("N0") đ
+                                </p>
+
+                                <p>
+                                    <b>Đơn tối thiểu:</b>
+                                    @item.DieuKienToiThieu.ToString("N0") đ
+                                </p>
+
+                              
+
+                                <p>
+                                    <b>Hết hạn:</b>
+                                    @item.NgayKetThuc.ToString("dd/MM/yyyy")
+                                </p>
+
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="text-center">
+                <h5>Hiện chưa có voucher nào</h5>
+            </div>
+        }
+
+    </div>
+</div>
+
+<style>
+
+    .voucher-card {
+        position: relative;
+        transition: .3s;
+        border-radius: 20px;
+        overflow: hidden;
+    }
+
+        .voucher-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 10px 25px rgba(0,0,0,.15);
+        }
+
+    .voucher-header {
+        background: linear-gradient(135deg,#ff512f,#dd2476);
+        color: white;
+        padding: 35px;
+    }
+
+        .voucher-header h1 {
+            font-size: 50px;
+            font-weight: bold;
+        }
+
+    .status-badge {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        z-index: 10;
+    }
+</style>
+
+@code {
+
+    private List<Voucher> danhSachVoucher = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        danhSachVoucher = await voucherService.GetAll();
+
+        danhSachVoucher = danhSachVoucher
+            .Where(x => x.TrangThai)
+            .ToList();
+    }
+
+}

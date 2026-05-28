@@ -1,0 +1,753 @@
+﻿    @page "/khachhang"
+    @using API.Models.DTO.BanHang
+    @using Application.DTOs
+    @using BlazorKhachHang.Service.IService
+    @using Data.Models
+    @using Microsoft.JSInterop
+    @inject IJSRuntime JS
+    @inject HttpClient Http
+    @inject IXuLyDiaChi xuLyDiaChi
+@inject NavigationManager Nav
+
+    <div class="container py-4">
+
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 mb-4">
+                <div class="bg-white p-3 rounded shadow-sm sidebar text-center">
+                    <!-- Avatar -->
+                    <div class="mb-3">
+                        <img src="@avatarImage" alt="avatar" class="profile-avatar mb-2">
+
+                        <button class="btn btn-outline-secondary btn-sm mb-2"
+                                @onclick="TriggerAvatarClick">
+                            <i class="bi bi-pencil"></i> Chỉnh sửa ảnh
+                        </button>
+
+                        <InputFile OnChange="OnAvatarChanged"
+                                   accept="image/*"
+                                   style="display:none"
+                                   id="avatarInput" />
+                    </div>
+
+                    <!-- Tên -->
+                    @* <div>
+                        <div class="fw-bold">@ProfileName</div>
+                        <a href="#" class="text-decoration-none text-muted" style="font-size:13px;">Sửa hồ sơ</a>
+                    </div> *@
+
+                    <!-- Menu -->
+                    <div class="menu-title mt-4">Tài khoản của tôi</div>
+                    <nav class="nav flex-column mb-3">
+                        <a class="nav-link @(activeTab == "profile" ? "active" : null)" @onclick="@(() => SetActiveTab("profile"))">Hồ sơ</a>
+                        <a class="nav-link @(activeTab == "address" ? "active" : null)" @onclick="@(() => SetActiveTab("address"))">Địa chỉ</a>
+                    </nav>
+                    <nav class="nav flex-column">
+                        <a class="nav-link @(activeTab == "donmua" ? "active" : null)" @onclick="LoadDonMua">Đơn mua</a>
+                        @* <a class="nav-link" href="#">Phiếu giảm giá</a> *@
+                        @* <a class="nav-link @(activeTab == "doimatkhau" ? "active" : null)" @onclick="@(() => SetActiveTab("doimatkhau"))">Đổi mật khẩu</a> *@
+
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Content -->
+            <div class="col-md-9">
+                <!-- Hồ sơ -->
+                @if (activeTab == "profile")
+                {
+                    <div class="bg-white p-4 rounded shadow-sm">
+                        <h4 class="mb-4">Hồ sơ của tôi</h4>
+
+                        @if (!isEditingProfile)
+                        {
+                            <div class="mb-3 row">
+                                <label class="col-sm-3 col-form-label">Họ tên:</label>
+                                <div class="col-sm-9">@ProfileName</div>
+                            </div>
+
+                            <div class="mb-3 row">
+                                <label class="col-sm-3 col-form-label">Email:</label>
+                                <div class="col-sm-9">@MaskEmail(ProfileEmail)</div>
+                            </div>
+
+                            <div class="mb-3 row">
+                                <label class="col-sm-3 col-form-label">Số điện thoại:</label>
+                                <div class="col-sm-9">@MaskPhone(ProfilePhone)</div>
+                            </div>
+
+                            <div class="mb-3 row">
+                                <label class="col-sm-3 col-form-label">Giới tính:</label>
+                                <div class="col-sm-9">@ProfileGender</div>
+                            </div>
+
+                            <div class="mb-3 row">
+                                <label class="col-sm-3 col-form-label">Ngày sinh:</label>
+                                <div class="col-sm-9">@ProfileBirthday.ToString("dd/MM/yyyy")</div>
+                            </div>
+
+                            <div class="text-end">
+                                <button class="btn btn-primary" @onclick="EditProfile">
+                                    Sửa
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            <EditForm Model="this" OnValidSubmit="SaveProfile">
+                                <div class="mb-3 row">
+                                    <label class="col-sm-3 col-form-label">Họ tên:</label>
+                                    <div class="col-sm-9">
+                                        <InputText class="form-control" @bind-Value="tempName" />
+                                    </div>
+                                </div>
+
+                                <div class="mb-3 row">
+                                    <label class="col-sm-3 col-form-label">Email:</label>
+                                    <div class="col-sm-9">
+                                        <InputText class="form-control" @bind-Value="tempEmail" />
+                                    </div>
+                                </div>
+
+                                <div class="mb-3 row">
+                                    <label class="col-sm-3 col-form-label">Số điện thoại:</label>
+                                    <div class="col-sm-9">
+                                        <InputText class="form-control" @bind-Value="tempPhone" />
+                                    </div>
+                                </div>
+
+                                <div class="mb-3 row">
+                                    <label class="col-sm-3 col-form-label">Giới tính:</label>
+                                    <div class="col-sm-9">
+                                        <InputSelect class="form-select" @bind-Value="tempGender">
+                                            <option>Nam</option>
+                                            <option>Nữ</option>
+                                            <option>Khác</option>
+                                        </InputSelect>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3 row">
+                                    <label class="col-sm-3 col-form-label">Ngày sinh:</label>
+                                    <div class="col-sm-9">
+                                        <InputDate class="form-control" @bind-Value="tempBirthday" />
+                                    </div>
+                                </div>
+
+                                <div class="text-end">
+                                    <button type="submit" class="btn btn-success me-2">Lưu</button>
+                                    <button type="button" class="btn btn-secondary" @onclick="CancelProfile">Hủy</button>
+                                </div>
+                            </EditForm>
+                        }
+                    </div>
+                }
+
+                <!-- Địa chỉ -->
+            @if (activeTab == "address")
+            {
+                <div class="bg-white p-4 rounded shadow-sm">
+                    <h4 class="mb-4">Địa chỉ của tôi</h4>
+
+                    @if (!isEditingAddress)
+                    {
+                        <button class="btn btn-primary mb-3" @onclick="AddNewAddress">
+                            + Thêm địa chỉ mới
+                        </button>
+                        @foreach (var dc in DanhSachDiaChi)
+                        {
+                            <div class="border p-3 mb-2 rounded">
+                                <div>
+                                    <b>@MaskAddress($"{dc.DiaChiCuThe}, {dc.PhuongXa}, {dc.QuanHuyen}, {dc.ThanhPho}")</b>
+                                </div>
+                                @if (dc.IsDefault)
+                                {
+                                    <span class="badge bg-success">Mặc định</span>
+                                }
+                                <div class="mt-2">
+                                    <button class="btn btn-sm btn-outline-primary me-2" @onclick="() => EditAddressItem(dc)">Sửa</button>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteAddress(dc.DiaChiKhachHangId)">Xóa</button>
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div>
+                            <EditForm Model="form" OnValidSubmit="SaveAddress">
+                                <DataAnnotationsValidator />
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Tỉnh / Thành phố</label>
+                                        <InputSelect class="form-control"
+                                                     TValue="string"
+                                                     Value="form.ThanhPho"
+                                                     ValueChanged="@(value => OnThanhPhoChanged(value))"
+                                                     ValueExpression="() => form.ThanhPho">
+                                            <option value="">Chọn Tỉnh / TP</option>
+                                            @foreach (var t in TinhThanh)
+                                            {
+                                                <option value="@t.Ten">@t.Ten</option>
+                                            }
+                                        </InputSelect>
+                                        <ValidationMessage For="@(() => form.ThanhPho)" />
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <label class="form-label">Quận / Huyện</label>
+                                        <InputSelect class="form-control"
+                                                     TValue="string"
+                                                     Value="form.QuanHuyen"
+                                                     ValueChanged="@(value => OnQuanHuyenChanged(value))"
+                                                     ValueExpression="() => form.QuanHuyen">
+                                            <option value="">Chọn Quận / Huyện</option>
+                                            @foreach (var h in HuyenXa)
+                                            {
+                                                <option value="@h.Ten">@h.Ten</option>
+                                            }
+                                        </InputSelect>
+                                        <ValidationMessage For="@(() => form.QuanHuyen)" />
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <label class="form-label">Phường / Xã</label>
+                                        <InputSelect class="form-control" @bind-Value="form.PhuongXa">
+                                            <option value="">Chọn Phường / Xã</option>
+                                            @foreach (var x in XaPhuong)
+                                            {
+                                                <option value="@x.Ten">@x.Ten</option>
+                                            }
+                                        </InputSelect>
+                                        <ValidationMessage For="@(() => form.PhuongXa)" />
+                                    </div>
+                                </div>
+
+                                <div class="mt-3">
+                                    <label class="form-label">Địa chỉ chi tiết</label>
+                                    <InputText class="form-control" @bind-Value="form.DiaChiCuThe" placeholder="Số nhà, tên đường..." />
+                                    <ValidationMessage For="@(() => form.DiaChiCuThe)" />
+                                </div>
+
+                                <div class="mt-3">
+                                    <button type="submit" class="btn btn-success me-2">Lưu địa chỉ</button>
+                                    <button type="button" class="btn btn-secondary" @onclick="CancelAddress">Hủy bỏ</button>
+                                </div>
+                            </EditForm>
+                        </div>
+                    }
+                </div>
+            }
+
+                <!-- Đơn mua -->
+                @if (activeTab == "donmua")
+                {
+                    <DonMuaTab />
+
+                }
+
+                <!-- Đổi mật khẩu -->
+                @* @if (activeTab == "doimatkhau")
+                {
+
+                    <DoiMatKhauTab />
+
+                } *@
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal địa chỉ -->
+    <div class="modal fade" id="editAddressModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Chỉnh sửa địa chỉ</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3"><label class="form-label">Tên địa chỉ:</label><input class="form-control" @bind="AddressName"></div>
+                    <div class="mb-3"><label class="form-label">Số điện thoại:</label><input class="form-control" @bind="AddressPhone"></div>
+                    <div class="mb-3"><label class="form-label">Địa chỉ chi tiết:</label><textarea class="form-control" @bind="AddressFull"></textarea></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal" @onclick="SaveAddress">Lưu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+<ChonDiaChi
+    IsAddressModalVisible="@showAddressSelect"
+    HoTen="@ProfileName"
+    SoDienThoai="@ProfilePhone"
+    Addresses="@DanhSachDiaChi"
+    OnAddressSelected="OnAddressSelected"
+    OnReloadAddress="LoadAddress"
+    OnClose="CloseAddressSelect" />
+
+@code {
+    [Parameter] public EventCallback OnReloadAddress { get; set; }
+    private List<DiaChiKhachHang> DanhSachDiaChi = new();
+    bool showAddressSelect = false;
+
+    private Guid KhachHangId;
+    private Guid DiaChiId;
+    private List<DiaChi> TinhThanh = new();
+    private List<DiaChi> HuyenXa = new();
+    private List<DiaChi> XaPhuong = new();
+    bool isEditingAddress = false;
+    private string ThanhPho = "";
+    private string QuanHuyen = "";
+    private string PhuongXa = "";
+    private string DiaChiCuThe = "";
+    private ElementReference avatarInput;
+    private bool isEditingProfile = false;
+
+    private string tempName = "";
+    private string tempEmail = "";
+    private string tempPhone = "";
+    private string tempGender = "";
+    private DateTime tempBirthday = DateTime.Today;
+
+    private string activeTab = "profile";
+
+    private string ProfileName = "";
+    private string ProfileEmail = "";
+    private string ProfilePhone = "";
+    private string ProfileGender = "";
+    private DateTime ProfileBirthday = DateTime.Today;
+
+    private string AddressName = "";
+    private string AddressPhone = "";
+    private string AddressFull = "";
+
+    private string avatarImage = "https://i.pravatar.cc/100";
+    private string DonMuaHtml = "Đang tải đơn mua...";
+    private string DoiMatKhauHtml = "Đang tải đổi mật khẩu...";
+
+    private bool _firstRender = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var idStr = await JS.InvokeAsync<string>("localStorage.getItem", "khachHangId");
+
+            if (string.IsNullOrEmpty(idStr))
+            {
+                Nav.NavigateTo("/login");
+                return;
+            }
+
+            KhachHangId = Guid.Parse(idStr);
+
+            // ✅ CHỈ GỌI API
+            await LoadProfile();
+            await LoadAddress();
+
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadProfile()
+    {
+        var kh = await Http.GetFromJsonAsync<KhachHangModel>($"api/KhachHang/{KhachHangId}");
+
+        if (kh != null)
+        {
+            ProfileName = kh.HoTen;
+            ProfileEmail = kh.Email;
+            ProfilePhone = kh.SoDienThoai; // 🔥 QUAN TRỌNG
+            ProfileGender = kh.GioiTinh;
+            ProfileBirthday = kh.NgaySinh;
+        }
+    }
+    private async Task SaveProfile()
+    {
+        var model = new KhachHangUpdateDTO
+            {
+                KhachHangId = KhachHangId,
+                HoTen = tempName,
+                Email = tempEmail,
+                SoDienThoai = tempPhone,
+                GioiTinh = tempGender,
+                NgaySinh = tempBirthday
+            };
+
+        var response = await Http.PutAsJsonAsync(
+            $"api/KhachHang/update-profile/{KhachHangId}",
+            model
+        );
+
+        if (response.IsSuccessStatusCode)
+        {
+            ProfileName = tempName;
+            ProfileEmail = tempEmail;
+            ProfilePhone = tempPhone;
+            ProfileGender = tempGender;
+            ProfileBirthday = tempBirthday;
+
+            isEditingProfile = false;
+
+            // lưu localStorage
+            await JS.InvokeVoidAsync("localStorage.setItem", "name", ProfileName);
+            await JS.InvokeVoidAsync("localStorage.setItem", "email", ProfileEmail);
+            await JS.InvokeVoidAsync("localStorage.setItem", "phone", ProfilePhone);
+            await JS.InvokeVoidAsync("localStorage.setItem", "gender", ProfileGender);
+            await JS.InvokeVoidAsync("localStorage.setItem", "birthday", ProfileBirthday.ToString("yyyy-MM-dd"));
+
+            await JS.InvokeVoidAsync("alert", "Thông tin đã được lưu!");
+        }
+        else
+        {
+            var msg = await response.Content.ReadAsStringAsync();
+            await JS.InvokeVoidAsync("alert", $"Lỗi: {msg}");
+        }
+    }
+
+    private async Task SaveAddress()
+    {
+        var model = new DiaChiKhachHangDto
+        {
+            DiaChiKhachHangId = DiaChiId,
+            KhachHangId = KhachHangId,
+
+            // ✅ LẤY TỪ FORM
+            DiaChiCuThe = form.DiaChiCuThe,
+            PhuongXa = form.PhuongXa,
+            QuanHuyen = form.QuanHuyen,
+            ThanhPho = form.ThanhPho,
+
+            TrangThai = true,
+            IsDefault = true
+        };
+
+        HttpResponseMessage response;
+
+        if (DiaChiId == Guid.Empty)
+            response = await Http.PostAsJsonAsync("api/DiaChiKhachHang", model);
+        else
+            response = await Http.PutAsJsonAsync($"api/DiaChiKhachHang/{DiaChiId}", model);
+
+        if (response.IsSuccessStatusCode)
+        {
+            isEditingAddress = false;
+
+            await LoadAddress();
+
+            // 🔥 reset toàn bộ form + dropdown đúng cách
+            form = new DiaChiFormModel();
+            DiaChiId = Guid.Empty;
+
+            HuyenXa = new List<DiaChi>();
+            XaPhuong = new List<DiaChi>();
+
+            // 🔥 đảm bảo UI cập nhật sạch sẽ
+            await InvokeAsync(StateHasChanged);
+
+            await JS.InvokeVoidAsync("alert", "Lưu địa chỉ thành công!");
+        }
+        else
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            await JS.InvokeVoidAsync("alert", "Lỗi: " + error);
+        }
+    }
+
+    private async Task TriggerAvatarClick()
+    {
+        await JS.InvokeVoidAsync("clickElement", avatarInput);
+    }
+
+    private async Task OnAvatarChanged(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+
+        using var stream = file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+
+        avatarImage = $"data:{file.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}";
+
+        await JS.InvokeVoidAsync("localStorage.setItem", "avatarImage", avatarImage);
+
+        StateHasChanged();
+    }
+
+    private void SetActiveTab(string tab)
+    {
+        activeTab = tab;
+    }
+
+    private void LoadDonMua()
+    {
+        SetActiveTab("donmua");
+    }
+
+
+    public class ProfileData
+    {
+        public string name { get; set; } = string.Empty;
+        public string email { get; set; } = string.Empty;
+        public string phone { get; set; } = string.Empty;
+        public string gender { get; set; } = string.Empty;
+        public string birthday { get; set; } = string.Empty;
+    }
+
+    public class KhachHangModel
+    {
+        public Guid KhachHangId { get; set; }
+        public string HoTen { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string SoDienThoai { get; set; } = string.Empty;
+        public string GioiTinh { get; set; } = string.Empty;
+        public DateTime NgaySinh { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        TinhThanh = await xuLyDiaChi.ParseDiaChiAsync("wwwroot/Files/ThanhPho.txt");
+    }
+   
+    void EditAddress()
+    {
+        isEditingAddress = true;
+    }
+    void CancelAddress()
+    {
+        isEditingAddress = false;
+        DiaChiId = Guid.Empty;
+        form = new DiaChiFormModel();
+    }
+
+    private string MaskAddress(string address)
+    {
+        if (string.IsNullOrWhiteSpace(address) || address.Length <= 15)
+            return address;
+
+        return address[..(address.Length / 3)]
+               + " **** "
+               + address[(address.Length * 2 / 3)..];
+    }
+    void EditProfile()
+    {
+        tempName = ProfileName;
+        tempEmail = ProfileEmail;
+        tempPhone = ProfilePhone;
+        tempGender = ProfileGender;
+        tempBirthday = ProfileBirthday;
+
+        isEditingProfile = true;
+    }
+
+    void CancelProfile()
+    {
+        isEditingProfile = false;
+    }
+    private string MaskEmail(string email)
+    {
+        if (string.IsNullOrEmpty(email) || !email.Contains("@"))
+            return email;
+
+        var parts = email.Split("@");
+        var name = parts[0];
+
+        if (name.Length <= 3)
+            return "***@" + parts[1];
+
+        return name[..3] + "****@" + parts[1];
+    }
+    private string MaskPhone(string phone)
+    {
+        if (string.IsNullOrEmpty(phone) || phone.Length < 7)
+            return phone;
+
+        return phone[..3] + "****" + phone[^2..];
+    }
+    // thêm load địa chỉ
+    private async Task LoadAddress()
+    {
+        var list = await Http.GetFromJsonAsync<List<DiaChiKhachHang>>
+            ($"api/DiaChiKhachHang/khachhang/{KhachHangId}");
+
+        if (list == null)
+            return;
+
+        DanhSachDiaChi = new List<DiaChiKhachHang>(list); // 🔥 clone list
+
+        await InvokeAsync(StateHasChanged); // 🔥 QUAN TRỌNG
+    }
+    private void OnAddressSelected(DiaChiKhachHang dc)
+    {
+        DiaChiId = dc.DiaChiKhachHangId;
+
+        AddressFull = $"{dc.DiaChiCuThe}, {dc.PhuongXa}, {dc.QuanHuyen}, {dc.ThanhPho}";
+    }
+
+    void CloseAddressSelect()
+    {
+        showAddressSelect = false;
+    }
+    void AddNewAddress()
+    {
+        DiaChiId = Guid.Empty;
+
+        form = new DiaChiFormModel();
+
+        // 🔥 reset dropdown đúng cách
+        HuyenXa = new List<DiaChi>();
+        XaPhuong = new List<DiaChi>();
+
+        isEditingAddress = true;
+    }
+    void EditAddressItem(DiaChiKhachHang dc)
+    {
+        DiaChiId = dc.DiaChiKhachHangId;
+
+        // 1. Nạp danh sách trước để InputSelect có dữ liệu để map "value"
+        var tinh = TinhThanh.FirstOrDefault(x => x.Ten == dc.ThanhPho);
+        HuyenXa = tinh?.Con ?? new();
+
+        var huyen = HuyenXa.FirstOrDefault(x => x.Ten == dc.QuanHuyen);
+        XaPhuong = huyen?.Con ?? new();
+
+        // 2. Gán dữ liệu vào form
+        form = new DiaChiFormModel
+        {
+            ThanhPho = dc.ThanhPho,
+            QuanHuyen = dc.QuanHuyen,
+            PhuongXa = dc.PhuongXa,
+            DiaChiCuThe = dc.DiaChiCuThe
+        };
+
+        isEditingAddress = true;
+        StateHasChanged();
+    }
+
+    private async Task DeleteAddress(Guid id)
+    {
+        var confirm = await JS.InvokeAsync<bool>("confirm", "Bạn có chắc muốn xóa?");
+        if (!confirm) return;
+
+        var res = await Http.DeleteAsync($"api/DiaChiKhachHang/{id}");
+
+        if (res.IsSuccessStatusCode)
+        {
+            await LoadAddress();
+        }
+    }
+
+    private DiaChiFormModel form = new();
+    public class DiaChiFormModel
+    {
+        public Guid DiaChiKhachHangId { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Vui lòng chọn Tỉnh/Thành phố")]
+        public string ThanhPho { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Vui lòng chọn Quận/Huyện")]
+        public string QuanHuyen { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Vui lòng chọn Phường/Xã")]
+        public string PhuongXa { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Vui lòng nhập địa chỉ cụ thể")]
+        public string DiaChiCuThe { get; set; } = "";
+        }
+
+
+  
+
+    
+    private void OnThanhPhoChanged(string value)
+    {
+        form.ThanhPho = value;
+
+        form.QuanHuyen = "";
+        form.PhuongXa = "";
+
+        HuyenXa = TinhThanh.FirstOrDefault(x => x.Ten == value)?.Con ?? new();
+        XaPhuong = new();
+        shippingFee = CalculateShippingFee(value);
+
+        StateHasChanged(); // 🔥 thêm dòng này để đảm bảo UI cập nhật
+    }
+    private void OnQuanHuyenChanged(string value)
+    {
+        form.QuanHuyen = value;
+        form.PhuongXa = "";
+
+        XaPhuong = HuyenXa.FirstOrDefault(x => x.Ten == value)?.Con ?? new();
+
+        StateHasChanged(); // 🔥 thêm luôn
+    }
+
+    private decimal shippingFee = 0;
+    private DateTime deliveryDate;
+
+    private decimal CalculateShippingFee(string tinh)
+    {
+        if (string.IsNullOrEmpty(tinh))
+            return 0;
+
+        string shopLocation = "Hà Nội";
+
+        if (tinh.Contains(shopLocation))
+        {
+            deliveryDate = DateTime.Now.AddDays(1);
+            return 20000;
+        }
+
+        var mienBac = new List<string>
+    {
+        "Hải Phòng", "Bắc Ninh", "Hà Nam", "Hải Dương", "Hưng Yên",
+        "Nam Định", "Ninh Bình", "Thái Bình", "Vĩnh Phúc", "Lào Cai", "Yên Bái",
+        "Điện Biên", "Hòa Bình", "Lai Châu", "Sơn La", "Hà Giang", "Cao Bằng",
+        "Bắc Kạn", "Lạng Sơn", "Tuyên Quang", "Thái Nguyên",
+        "Phú Thọ", "Bắc Giang", "Quảng Ninh"
+    };
+
+        var mienTrung = new List<string>
+    {
+        "Thanh Hóa", "Nghệ An", "Hà Tĩnh", "Quảng Bình", "Quảng Trị",
+        "Thừa Thiên Huế", "Đà Nẵng", "Quảng Nam", "Quảng Ngãi",
+        "Bình Định", "Phú Yên", "Khánh Hòa", "Ninh Thuận",
+        "Bình Thuận", "Kon Tum", "Gia Lai", "Đắc Lắk",
+        "Đắc Nông", "Lâm Đồng"
+    };
+
+        var mienNam = new List<string>
+    {
+        "TP Hồ Chí Minh", "Bà Rịa - Vũng Tàu", "Bình Dương",
+        "Bình Phước", "Đồng Nai", "Tây Ninh", "An Giang",
+        "Bạc Liêu", "Bến Tre", "Cà Mau", "Cần Thơ",
+        "Đồng Tháp", "Hậu Giang", "Kiên Giang",
+        "Long An", "Sóc Trăng", "Tiền Giang",
+        "Trà Vinh", "Vĩnh Long"
+    };
+
+        if (mienBac.Any(x => tinh.Contains(x)))
+        {
+            deliveryDate = DateTime.Now.AddDays(2);
+            return 28000;
+        }
+
+        if (mienTrung.Any(x => tinh.Contains(x)))
+        {
+            deliveryDate = DateTime.Now.AddDays(3);
+            return 35000;
+        }
+
+        if (mienNam.Any(x => tinh.Contains(x)))
+        {
+            deliveryDate = DateTime.Now.AddDays(4);
+            return 45000;
+        }
+
+        deliveryDate = DateTime.Now.AddDays(4);
+        return 40000;
+    }
+
+}

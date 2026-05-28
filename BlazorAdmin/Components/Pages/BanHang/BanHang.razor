@@ -1,0 +1,1399 @@
+﻿@page "/banhang"
+@layout AdminLayout
+@inject IXuLyDiaChi xuLyDiaChi
+@inject IVoucherService voucherService
+@inject IHoaDonService HoaDonService
+@inject IKhachHangService khachHangService
+@inject IDiaChiKhachHangService DiaChiKhachHangService
+@inject IGiayChiTietService GiayChiTietService
+@inject IHoaDonChiTietService HoaDonChiTietService
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject IJSRuntime JS
+@using API.Models.DTO.BanHang
+@using API.Models.DTO
+@using API.Models.DTO.HeThong
+@inject NavigationManager Nav
+
+<link href="css/BanHang.css" rel="stylesheet" />
+<div class="sell-container">
+    <!-- Tabs đơn hàng -->
+    <div class="order-tabs">
+        @foreach (var order in Orders.Select((value, index) => new { value, index }))
+        {
+            <div class="order-tab @(order.index == CurrentOrderIndex ? "active" : "")" @onclick="@(() => SwitchOrder(order.index))">
+                Đơn hàng @(order.index + 1)
+                @if (order.value.Products.Count > 0)
+                {
+                    <span class="order-qty-badge">@order.value.Products.Sum(p => p.SoLuongDat)</span>
+                }
+                <span class="close" @onclick="() => RemoveOrderSafe(order.index)">×</span>
+            </div>
+        }
+
+        <button class="create-order-btn" @onclick="CreateOrder">+ Tạo đơn hàng</button>
+    </div>
+    @if (Orders.Count == 0)
+    {
+        <div class="empty-order-notice">
+            Bạn chưa có đơn hàng nào.
+            <button class="create-order-btn" @onclick="CreateOrder">+ Tạo đơn hàng đầu tiên</button>
+        </div>
+    }
+
+    <!-- Thanh công cụ sản phẩm -->
+    @if (CurrentOrder != null)
+    {
+        <div class="order-actions">
+            <div class="order-list-title">Sản phẩm</div>
+
+            <div class="order-actions-buttons">
+
+                <button class="qr-btn" @onclick="ScanQRCode">📷 Quét QR sản phẩm</button>
+                <button class="add-btn" @onclick="() => IsProductModalVisible = true">Thêm sản phẩm</button>
+                <ProductSelect Visible="@IsProductModalVisible"
+                               OnAddProduct="HandleAddProduct"
+                               OnClose="@(() => IsProductModalVisible = false)" />
+            </div>
+        </div>
+
+    }
+    @if (CurrentOrder != null)
+    {
+        <!-- Danh sách sản phẩm trong đơn hàng -->
+        <div class="order-list @OrderListClass">
+            @if (CurrentOrder?.Products.Count == 0)
+            {
+                <div>Chưa có sản phẩm nào trong đơn hàng</div>
+            }
+            else
+            {
+                @foreach (var product in CurrentOrder.Products)
+                {
+                    <div class="order-item">
+                        <img src="@GetFullImageUrl(product.AnhGiay)"
+                             class="order-img"
+                             loading="lazy"
+                             onerror="this.onerror=null;this.src='/images/no-image.png';" />
+                        <div class="item-info">
+                            <div class="order-name">@product.TenGiay</div>
+                            <div class="order-price">
+                                <span class="old-price">@FormatMoney(product.GiaGoc)</span>
+                                <span class="new-price">@FormatMoney(product.Gia)</span>
+                            </div>
+                            <div class="order-size">Size: @product.size</div>
+                        </div>
+                        <div class="order-qty">
+                            <button class="decrease-btn" @onclick="() => DecreaseQuantity(product)">-</button>
+                            <input class="qty-input" type="number" value="@product.SoLuongDat" readonly />
+                            <button class="increase-btn" @onclick="() => IncreaseQuantity(product)">+</button>
+                        </div>
+                        <div class="order-total">@FormatMoney(product.SoLuongDat * (int)product.Gia)</div>
+                        <button class="order-remove" @onclick="() => RemoveProduct(product)">×</button>
+                    </div>
+                }
+
+            }
+        </div>
+    }
+
+    <!-- Khách hàng -->
+    @if (CurrentOrder != null)
+    {
+        <div class="customer-header">
+            <span class="customer-title">
+                Khách hàng: <span class="customer-name">@(CurrentOrder?.Customer?.HoTen ?? "Khách lẻ") </span>
+                @if (CurrentOrder?.Customer != null && CurrentOrder.ThongTinHoaDon.IsDelivery)
+                {
+                    <button type="button" class="address-change-btn" @onclick="() => IsAddressModalVisible = true"
+                            style="margin-left:8px; background:#ff9800; color:#fff; border:none; border-radius:4px; padding:4px 8px; font-size:12px; cursor:pointer;">
+                        Chọn địa chỉ
+                    </button>
+                    <AddressSelect Visible="@IsAddressModalVisible"
+                                   OnAddressSelected="HandleAddressSelected"
+                                   OnClose="@(() => IsAddressModalVisible = false)" />
+                }
+            </span>
+            <button class="choose-customer-btn" @onclick="() => IsCustomerModalVisible = true">+ CHỌN KHÁCH HÀNG</button>
+            <CustomerSelect Visible="@IsCustomerModalVisible"
+                            OnCustomerSelected="HandleCustomerSelected"
+                            OnClose="@(() => IsCustomerModalVisible = false)" />
+            @if (CurrentOrder?.Customer != null)
+            {
+                <button class="reset-customer-btn" @onclick="@Khachle"
+                        style=" margin-left:8px; background:#e0e0e0; color:#333; border:none; border-radius:6px; padding:8px 16px; cursor:pointer; font-weight:500;height:40px;">
+                    Đổi về khách lẻ
+                </button>
+            }
+        </div>
+
+    }
+
+
+
+    <!-- Footer đặt hàng -->
+    @if (CurrentOrder != null)
+    {
+
+
+        <div class="order-footer">
+            @if (CurrentOrder.ThongTinHoaDon.IsDelivery)
+            {
+
+                <div class="customer-info">
+                    <div class="customer-info-row">
+                        <div>
+                            <label>Tên người nhận</label>
+                            <input type="text" class="receiver-name-input" @bind="CurrentOrder.ThongTinHoaDon.TenNguoiNhan" />
+                        </div>
+                        <div>
+                            <label>Số điện thoại</label>
+                            <input type="text" class="receiver-phone-input" @bind="CurrentOrder.ThongTinHoaDon.Sdt" />
+                        </div>
+                    </div>
+                    <div class="customer-info-row">
+                        <div class="customer-info-row">
+                            <div>
+                                <label for="TinhThanh">Tỉnh/Thành phố</label>
+                                <input id="TinhThanh" @onchange="OnTinhChanged"
+                                       list="Tinh"
+                                       value="@Tinh"
+                                       class="province-input" />
+                                <datalist id="Tinh">
+                                    @foreach (var t in TinhThanh)
+                                    {
+                                        <option value="@t.Ten" />
+                                    }
+                                </datalist>
+
+                            </div>
+                            <div>
+                                <label for="QuanHuyen">Quận/Huyện</label>
+                                <input id="QuanHuyen"
+                                       @onchange="OnHuyenChanged"
+                                       list="Quan"
+                                       value="@Huyen"
+                                       disabled="@string.IsNullOrEmpty(Tinh)"
+                                       class="province-input" />
+                                <datalist id="Quan">
+                                    @foreach (var h in HuyenXa)
+                                    {
+                                        <option value="@h.Ten" />
+                                    }
+                                </datalist>
+                            </div>
+                            <div>
+                                <label for="XaPhuongThiTran">Xã/Phường/Thị trấn</label>
+                                <input id="XaPhuongThiTran"
+                                       @onchange="OnXaPhuongChanged"
+                                       list="XaPhuong"
+                                       value="@Phuong"
+                                       disabled="@string.IsNullOrEmpty(Huyen)"
+                                       class="province-input" />
+                                <datalist id="XaPhuong">
+                                    @foreach (var x in XaPhuong)
+                                    {
+                                        <option value="@x.Ten" />
+                                    }
+                                </datalist>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="customer-info-row">
+                        <div style="flex:2; position:relative;">
+                            <label>Địa chỉ cụ thể</label>
+                            <input type="text" class="address-detail-input" @bind="CurrentOrder.ThongTinHoaDon.DiaChiCuThe" placeholder="Địa chỉ cụ thể">
+                        </div>
+                        <div style="flex:1;">
+                            <label>Ghi chú</label>
+                            <input type="text" class="note-input" @bind="CurrentOrder.ThongTinHoaDon.GhiChu" placeholder="Ghi chú">
+                        </div>
+                    </div>
+                </div>
+            }
+
+        <div class="order-info">
+            <div style="text-align: right; margin-bottom: 12px;">
+                <label for="GiaoHang">Giao hàng</label>
+                <input id="GiaoHang" type="checkbox" class="delivery-toggle" @bind="CurrentOrder.ThongTinHoaDon.IsDelivery" />
+            </div>
+
+            <div class="voucher-area">
+                <input class="voucher-code-input"
+                       placeholder="Nhập mã voucher..."
+                       @bind="voucherCode"
+                       @bind:event="oninput"
+                       @onchange="OnVoucherCodeChange"
+                       disabled="@(CurrentOrder?.Products == null || CurrentOrder.Products.Count == 0)" />
+                <button type="button"
+                        class="choose-voucher-btn"
+                        @onclick="() => IsVoucherModalVisible = true">
+
+                    @(selectedVoucher != null
+                                        ? $"Voucher: {selectedVoucher.TenVoucher}"
+                                        : "🎁 Chọn voucher")
+                </button>
+
+                    <input disabled
+                           type="text"
+                           value="@($"{DiscountPercent} %")"
+                           class="discount-input" />
+
+                @if (!string.IsNullOrEmpty(voucherError))
+                    {
+                        <div style="color:red;margin-top:6px">
+                            @voucherError
+                        </div>
+                    }
+                </div>
+                @if (IsVoucherModalVisible)
+                {
+                    <div class="voucher-modal-overlay">
+
+                        <div class="voucher-modal">
+
+                            <div class="voucher-header">
+                                <h4>Danh sách voucher</h4>
+
+                                <button class="close-btn"
+                                        @onclick="() => IsVoucherModalVisible = false">
+                                    ×
+                                </button>
+                            </div>
+
+                            <div class="voucher-list">
+
+                                @foreach (var voucher in vouchers.Where(x => x.TrangThai))
+                                {
+                                    bool duDieuKien = Subtotal >= voucher.DieuKienToiThieu;
+
+                                    <div class="voucher-card
+                                                             @(duDieuKien ? "" : "disabled")
+                                                             @(selectedVoucher?.VoucherId == voucher.VoucherId ? "active" : "")">
+
+                                        <div class="voucher-info">
+                                            <div class="voucher-name">
+                                                @voucher.TenVoucher
+                                            </div>
+
+                                            <div class="voucher-condition">
+                                                Đơn tối thiểu:
+                                                @FormatMoney(voucher.DieuKienToiThieu)
+                                            </div>
+
+                                            <div class="voucher-discount">
+                                                @if (voucher.PhanTram > 0)
+                                                {
+                                                    <span>Giảm @voucher.PhanTram %</span>
+                                                }
+                                                else
+                                                {
+                                                    <span>
+                                                        Giảm @FormatMoney(voucher.SoTienGiam)
+                                                    </span>
+                                                }
+                                        </div>
+                                    </div>
+
+                                    <button class="select-voucher-btn"
+                                            disabled="@(!duDieuKien)"
+                                            @onclick="() => ToggleVoucher(voucher)">
+
+                                        @(selectedVoucher?.VoucherId == voucher.VoucherId
+                                                                        ? "Huỷ"
+                                                                        : "Chọn")
+                            </button>
+
+                                    </div>
+                                                }
+
+                            </div>
+
+                        </div>
+                    </div>
+                }
+                <div class="order-summary">
+                    <div class="order-row">
+                        <span>Tiền hàng</span>
+                        <span>@FormatMoney(Subtotal)</span>
+                    </div>
+                    @if (CurrentOrder != null && CurrentOrder.ThongTinHoaDon.IsDelivery)
+                    {
+                        <div class="order-row">
+                            <span>Phí vận chuyển</span>
+                            <span>@FormatMoney(ShippingFee)</span>
+                        </div>
+                    }
+                    <div class="order-row">
+                        <span>Giảm giá</span>
+                        <span>@FormatMoney(DiscountAmount)</span>
+                    </div>
+                    <div class="order-row total">
+                        <span>Tổng số tiền</span>
+                        <span>@FormatMoney(TotalAmount)</span>
+                    </div>
+                    <div class="order-row">
+                        <span>Khách thanh toán:</span>
+                        <input class="pay-input" type="text" @bind="CustomerPay" />
+                    </div>
+                    <div class="order-row deficit">
+                        <span>Số tiền phải trả</span>
+                        <span>@DeficitAmount</span>
+                    </div>
+                    <button class="confirm-btn" @onclick="ConfirmOrder">XÁC NHẬN ĐẶT HÀNG</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool IsVoucherModalVisible = false;
+    private string BaseApiUrl = "https://localhost:7246";
+    private string OrderListClass => CurrentOrder?.Products?.Count == 0 ? "empty" : "";
+    // 📦 Dữ liệu đơn hàng
+
+    private List<Order> Orders = new();
+    private int CurrentOrderIndex = 0;
+    private Order? CurrentOrder =>
+    Orders != null && Orders.Count > 0 && CurrentOrderIndex < Orders.Count
+    ? Orders[CurrentOrderIndex]
+    : null;
+
+    private string voucherCode = "";
+    private async Task OnVoucherCodeChange(ChangeEventArgs e)
+    {
+        voucherError = "";
+        selectedVoucher = null;
+        DiscountPercent = 0;
+
+        voucherCode = e.Value?.ToString()?.Trim();
+
+        // ❌ CHẶN NẾU CHƯA CÓ SẢN PHẨM
+        if (CurrentOrder?.Products == null || CurrentOrder.Products.Count == 0)
+        {
+            voucherError = "Vui lòng chọn sản phẩm trước khi nhập voucher";
+            return;
+        }
+
+        if (string.IsNullOrEmpty(voucherCode))
+            return;
+
+        var voucher = vouchers.FirstOrDefault(v =>
+            v.TenVoucher.Equals(voucherCode, StringComparison.OrdinalIgnoreCase));
+
+        if (voucher == null)
+        {
+            voucherError = "Mã voucher không tồn tại";
+            return;
+        }
+
+        if (!voucher.TrangThai)
+        {
+            voucherError = "Voucher không còn hiệu lực";
+            return;
+        }
+
+        if (Subtotal < voucher.DieuKienToiThieu)
+        {
+            voucherError = $"Đơn tối thiểu {FormatMoney(voucher.DieuKienToiThieu)}";
+            return;
+        }
+
+        ApplyVoucher(voucher);
+    }
+    private void ApplyVoucher(Voucher voucher)
+    {
+        selectedVoucher = voucher;
+        voucherError = "";
+        voucherCode = voucher.TenVoucher;
+
+        DiscountPercent = voucher.PhanTram > 0
+            ? voucher.PhanTram
+            : 0;
+
+        IsVoucherModalVisible = false;
+
+        StateHasChanged();
+    }
+    // 💰 Tính toán đơn hàng
+    private float DiscountPercent { get; set; } = 0;
+    private float _CustomerPay;
+    private float CustomerPay
+    {
+        get => _CustomerPay;
+        set
+        {
+            FormatMoney(DeficitAmount);
+            _CustomerPay = value;
+        }
+    }
+
+
+    private float Subtotal => CurrentOrder?.Products?.Sum(p => p.SoLuongDat * p.Gia) ?? 0f;
+    private float ShippingFee
+    {
+        get
+        {
+            if (CurrentOrder == null || !CurrentOrder.ThongTinHoaDon.IsDelivery)
+                return 0;
+
+            var tinh = CurrentOrder.ThongTinHoaDon.TinhThanhPho?.Trim().ToLower();
+
+            if (string.IsNullOrEmpty(tinh))
+                return 0;
+
+            // ===== Hà Nội freeship =====
+            if (tinh.Contains("hà nội") || tinh.Contains("ha noi"))
+                return 0;
+
+            // ===== Miền Bắc =====
+            var mienBac = new List<string>
+        {
+            "hải phòng", "hai phong",
+            "quảng ninh", "bac ninh",
+            "bắc giang", "thai nguyen",
+            "nam định", "ninh bình",
+            "hưng yên", "hải dương",
+            "vĩnh phúc", "phú thọ"
+        };
+
+            // ===== Miền Trung =====
+            var mienTrung = new List<string>
+        {
+            "đà nẵng", "da nang",
+            "nghệ an", "hà tĩnh",
+            "quảng bình", "quảng trị",
+            "huế", "thừa thiên huế",
+            "quảng nam", "quảng ngãi",
+            "bình định", "phú yên",
+            "khánh hòa"
+        };
+
+            // ===== Miền Nam =====
+            var mienNam = new List<string>
+        {
+            "hồ chí minh", "ho chi minh",
+            "cần thơ", "đồng nai",
+            "bình dương", "long an",
+            "tiền giang", "vũng tàu",
+            "an giang", "cà mau"
+        };
+
+            if (mienBac.Any(x => tinh.Contains(x)))
+                return 20000;
+
+            if (mienTrung.Any(x => tinh.Contains(x)))
+                return 30000;
+
+            if (mienNam.Any(x => tinh.Contains(x)))
+                return 40000;
+
+            // mặc định
+            return 35000;
+        }
+    }
+    private float DiscountAmount => CurrentOrder == null ? 0 : (Subtotal * DiscountPercent) / 100f;
+
+    private float TotalAmount => CurrentOrder == null ? 0 : Subtotal + ShippingFee - DiscountAmount;
+
+    private float DeficitAmount => CurrentOrder == null ? 0 : TotalAmount - CustomerPay;
+
+    private List<DiaChi> TinhThanh = new();
+    private List<DiaChi> HuyenXa = new();
+    private List<DiaChi> XaPhuong = new();
+    private List<Voucher> vouchers = new();
+    private Voucher selectedVoucher = new();
+    private Guid? KhachLeId;
+
+    private async Task ToggleVoucher(Voucher voucher)
+    {
+        voucherError = "";
+        voucherCode = voucher.TenVoucher;
+        // CLICK LẦN 2 => HỦY
+        if (selectedVoucher?.VoucherId == voucher.VoucherId)
+        {
+            selectedVoucher = null;
+            DiscountPercent = 0;
+            voucherCode = "";
+            await JS.InvokeVoidAsync("Swal.fire", new
+            {
+                toast = true,
+                position = "top-end",
+                icon = "info",
+                title = "Đã huỷ voucher",
+                showConfirmButton = false,
+                timer = 1500
+            });
+
+            StateHasChanged();
+            return;
+        }
+
+        // VALIDATE
+        if (Subtotal < voucher.DieuKienToiThieu)
+        {
+            voucherError = $"Cần tối thiểu {FormatMoney(voucher.DieuKienToiThieu)}";
+            return;
+        }
+
+        // CHỌN VOUCHER
+        selectedVoucher = voucher;
+
+        if (voucher.PhanTram > 0)
+        {
+            DiscountPercent = voucher.PhanTram;
+        }
+        else
+        {
+            DiscountPercent = 0;
+        }
+
+        IsVoucherModalVisible = false;
+
+        await JS.InvokeVoidAsync("Swal.fire", new
+        {
+            toast = true,
+            position = "top-end",
+            icon = "success",
+            title = "Áp dụng voucher thành công",
+            showConfirmButton = false,
+            timer = 2000
+        });
+
+        StateHasChanged();
+    }
+    // 🛒 Hành động
+    private async void CreateOrder()
+    {
+
+        if (Orders.Count >= 5)
+        {
+            await JS.InvokeVoidAsync("Swal.fire", new
+            {
+                toast = true,
+                position = "top-end",
+                icon = "info",
+                title = "Bạn đã tạo tối đa 5 đơn hàng.",
+                showConfirmButton = false,
+                timer = 3000,
+                timerProgressBar = true
+            });
+            return;
+        }
+        Orders.Add(new Order());
+        CurrentOrderIndex = Orders.Count - 1;
+        StateHasChanged();
+        await SaveOrdersToStorage();
+    }
+
+    private async Task RemoveOrder(int index)
+    {
+        if (Orders.Count < 1)
+        {
+            Orders = new() { new Order() };
+            CurrentOrderIndex = 0;
+            await SaveOrdersToStorage();
+            return;
+        }
+
+        Orders.RemoveAt(index);
+
+        if (index <= CurrentOrderIndex && CurrentOrderIndex > 0)
+        {
+            CurrentOrderIndex--;
+        }
+
+        if (CurrentOrderIndex >= Orders.Count)
+        {
+            CurrentOrderIndex = Orders.Count - 1;
+        }
+        await SaveOrdersToStorage();
+    }
+
+    private bool IsRemovingOrder = false;
+
+    private async Task RemoveOrderSafe(int index)
+    {
+        var result = await JS.InvokeAsync<SwalResult>("Swal.fire", new
+        {
+            title = "Xác nhận xóa đơn hàng",
+            text = "Bạn có chắc muốn xác nhận đơn hàng này?",
+            icon = "question",
+            showCancelButton = true,
+            confirmButtonText = "Xác nhận",
+            cancelButtonText = "Huỷ"
+        });
+
+        if (result.IsConfirmed)
+        {
+            if (IsRemovingOrder) return;
+            IsRemovingOrder = true;
+
+            RemoveOrder(index);
+            await Task.Delay(200);
+            IsRemovingOrder = false;
+        }
+    }
+
+
+    private async Task SwitchOrder(int index)
+    {
+        CurrentOrderIndex = index;
+
+
+        Tinh = CurrentOrder.ThongTinHoaDon.TinhThanhPho;
+        Huyen = CurrentOrder.ThongTinHoaDon.QuanHuyen;
+        Phuong = CurrentOrder.ThongTinHoaDon.XaPhuongThiTran;
+
+        var tinh = TinhThanh.FirstOrDefault(t => t.Ten == Tinh);
+        HuyenXa = tinh?.Con ?? new();
+
+        var huyen = HuyenXa.FirstOrDefault(h => h.Ten == Huyen);
+        XaPhuong = huyen?.Con ?? new();
+        await SaveOrdersToStorage();
+    }
+
+    private async void IncreaseQuantity(GiayChiTietDTO product)
+    {
+        product.SoLuongDat++;
+        if (product.SoLuongDat > product.SoLuongCon)
+        {
+            product.SoLuongDat = product.SoLuongCon;
+            await JS.InvokeVoidAsync("Swal.fire", new
+            {
+                toast = true,
+                position = "top-end",
+                icon = "info",
+                title = "Số lượng sản phẩm tối đa",
+                showConfirmButton = false,
+                timer = 3000,
+                timerProgressBar = true
+            });
+        }
+        await SaveOrdersToStorage();
+    }
+
+    private async Task DecreaseQuantity(GiayChiTietDTO product)
+    {
+        product.SoLuongDat--;
+        if (product.SoLuongDat < 1) RemoveProduct(product);
+        if (CurrentOrder.Products.Count == 0)
+        {
+            selectedVoucher = null;
+            DiscountPercent = 0;
+            voucherCode = "";
+            voucherError = "";
+        }
+        await SaveOrdersToStorage();
+
+
+    }
+
+    private async Task RemoveProduct(GiayChiTietDTO product)
+    {
+        CurrentOrder.Products.Remove(product);
+        await SaveOrdersToStorage();
+    }
+
+
+    private System.Threading.Timer? OrderCleanupTimer;
+    protected override void OnInitialized()
+    {
+        Orders ??= new();
+        OrderCleanupTimer = new System.Threading.Timer(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                var now = DateTime.Now;
+                Orders.RemoveAll(o => (now - o.ThoiGianTao).TotalMinutes >= 10);
+                if (CurrentOrderIndex >= Orders.Count)
+                {
+                    CurrentOrderIndex = Orders.Count - 1;
+                }
+                StateHasChanged();
+            });
+        }, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+    }
+
+
+
+    private void ScanQRCode()
+    {
+        // TODO: QR
+    }
+
+    private void ResetCustomer()
+    {
+        CurrentOrder.Customer = null;
+        CurrentOrder.ThongTinHoaDon.TenNguoiNhan = "";
+        CurrentOrder.ThongTinHoaDon.Sdt = "";
+    }
+
+    private async Task ConfirmOrder()
+    {
+        if (CurrentOrder.Products.Count == 0)
+        {
+            await JS.InvokeVoidAsync("Swal.fire", new
+            {
+                icon = "warning",
+                title = "Chưa thêm sản phẩm",
+                text = "Đơn hàng chưa được thêm sản phẩm."
+            });
+            return;
+        }
+
+        if (CurrentOrder.ThongTinHoaDon.IsDelivery)
+        {
+            if (string.IsNullOrWhiteSpace(CurrentOrder.ThongTinHoaDon.TenNguoiNhan) || string.IsNullOrWhiteSpace(CurrentOrder.ThongTinHoaDon.Sdt))
+            {
+                await JS.InvokeVoidAsync("Swal.fire", new
+                {
+                    icon = "warning",
+                    title = "Dữ liệu chưa đủ!",
+                    text = $"Chưa nhập thông tin người nhận",
+                    confirmButtonText = "OK"
+                });
+                return;
+            }
+
+            if (!System.Text.RegularExpressions.Regex.IsMatch(CurrentOrder.ThongTinHoaDon.Sdt, @"^\d{9,11}$"))
+            {
+                await JS.InvokeVoidAsync("Swal.fire", new
+                {
+                    icon = "warning",
+                    title = "Dữ liệu chưa đủ!",
+                    text = $"Số điện thoại không hợp lệ",
+                    confirmButtonText = "OK"
+                });
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(CurrentOrder.ThongTinHoaDon.TinhThanhPho) || string.IsNullOrWhiteSpace(CurrentOrder.ThongTinHoaDon.QuanHuyen) || string.IsNullOrWhiteSpace(CurrentOrder.ThongTinHoaDon.XaPhuongThiTran))
+            {
+                await JS.InvokeVoidAsync("Swal.fire", new
+                {
+                    icon = "warning",
+                    title = "Dữ liệu chưa đủ!",
+                    text = $"Chưa chọn địa chỉ khu vực",
+                    confirmButtonText = "OK"
+                });
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(CurrentOrder.ThongTinHoaDon.DiaChiCuThe))
+            {
+                await JS.InvokeVoidAsync("Swal.fire", new
+                {
+                    icon = "warning",
+                    title = "Dữ liệu chưa đủ!",
+                    text = $"Địa chỉ cụ thể chưa thêm",
+                    confirmButtonText = "OK"
+                });
+                return;
+            }
+        }
+        if (CustomerPay < TotalAmount)
+        {
+            await JS.InvokeVoidAsync("Swal.fire", new
+            {
+                icon = "warning",
+                title = "Chưa đủ tiền!",
+                text = $"Khách còn thiếu {FormatMoney(TotalAmount - CustomerPay)}",
+                confirmButtonText = "OK"
+            });
+            return;
+        }
+
+        // ✅ Thành công
+
+
+        if (CurrentOrder.ThongTinHoaDon.IsDelivery)
+        {
+            // Nếu chưa chọn khách hàng thì tạo khách mới
+            if (CurrentOrder.Customer == null)
+            {
+                var khachhang = new KhachHang()
+                {
+                    HoTen = string.IsNullOrWhiteSpace(CurrentOrder.ThongTinHoaDon.TenNguoiNhan)
+                            ? "Khách lẻ"
+                            : CurrentOrder.ThongTinHoaDon.TenNguoiNhan,
+
+                    SoDienThoai = CurrentOrder.ThongTinHoaDon.Sdt ?? ""
+                };
+
+                var result1 = await khachHangService.Create(khachhang);
+
+                if (result1 != null)
+                {
+                    CurrentOrder.Customer = result1;
+                }
+            }
+
+            // Sau khi chắc chắn có customer
+            if (CurrentOrder.Customer != null)
+            {
+                var diachi = new Application.DTOs.DiaChiKhachHangDto()
+                {
+                    KhachHangId = CurrentOrder.Customer.KhachHangId,
+
+                    ThanhPho = CurrentOrder.ThongTinHoaDon.TinhThanhPho,
+                    QuanHuyen = CurrentOrder.ThongTinHoaDon.QuanHuyen,
+                    PhuongXa = CurrentOrder.ThongTinHoaDon.XaPhuongThiTran,
+                    DiaChiCuThe = CurrentOrder.ThongTinHoaDon.DiaChiCuThe
+                };
+
+                await DiaChiKhachHangService.CreateAsync(diachi);
+            }
+        }
+        // ===== KIỂM TRA TỒN KHO TRƯỚC KHI TẠO HÓA ĐƠN =====
+        foreach (var item in CurrentOrder.Products.ToList())
+        {
+            var giayChiTiet = await GiayChiTietService.GetByIdAsync(item.GiayChiTietId);
+
+            if (giayChiTiet == null)
+            {
+                await JS.InvokeVoidAsync("Swal.fire", new
+                {
+                    icon = "error",
+                    title = "Lỗi",
+                    text = $"Không tìm thấy sản phẩm {item.TenGiay}"
+                });
+
+                return;
+            }
+
+            // Kiểm tra số lượng tồn thực tế
+            if (giayChiTiet.SoLuongCon < item.SoLuongDat)
+            {
+                // Nếu hết hàng thì xoá khỏi giỏ
+                if (giayChiTiet.SoLuongCon <= 0)
+                {
+                    CurrentOrder.Products.Remove(item);
+                }
+                else
+                {
+                    item.SoLuongDat = giayChiTiet.SoLuongCon;
+                }
+
+                await JS.InvokeVoidAsync("Swal.fire", new
+                {
+                    icon = "warning",
+                    title = "Không đủ hàng",
+                    text = $"Sản phẩm {item.TenGiay} chỉ còn {giayChiTiet.SoLuongCon}"
+                });
+
+                StateHasChanged();
+                return;
+            }
+        }
+        if (CurrentOrder.Products.Count == 0)
+        {
+            await JS.InvokeVoidAsync("Swal.fire", new
+            {
+                icon = "warning",
+                title = "Giỏ hàng trống",
+                text = "Không còn sản phẩm hợp lệ để thanh toán"
+            });
+
+            return;
+        }
+        var nhanVienId = await JS.InvokeAsync<Guid>("localStorage.getItem", "currentId");
+        Console.WriteLine(nhanVienId);
+
+        var hoaDon = new HoaDon
+        {
+            NhanVienId = nhanVienId,
+
+            KhachHangId = CurrentOrder.Customer?.KhachHangId ?? KhachLeId,
+
+            // ===== THÔNG TIN NGƯỜI NHẬN =====
+            TenNguoiNhan = string.IsNullOrWhiteSpace(CurrentOrder.ThongTinHoaDon.TenNguoiNhan)
+                    ? "Khách lẻ"
+                    : CurrentOrder.ThongTinHoaDon.TenNguoiNhan,
+
+            SoDienThoai = CurrentOrder.ThongTinHoaDon.Sdt ?? "",
+
+            DiaChi = CurrentOrder.ThongTinHoaDon.IsDelivery
+                    ? $"{CurrentOrder.ThongTinHoaDon.DiaChiCuThe}, " +
+                      $"{CurrentOrder.ThongTinHoaDon.XaPhuongThiTran}, " +
+                      $"{CurrentOrder.ThongTinHoaDon.QuanHuyen}, " +
+                      $"{CurrentOrder.ThongTinHoaDon.TinhThanhPho}"
+                    : "",
+
+            GhiChu = CurrentOrder.ThongTinHoaDon.GhiChu ?? "",
+
+            TrangThai = "Hoàn thành",
+
+            PhiShip = ShippingFee,
+
+            TongTienSauKhiGiam = TotalAmount,
+        };
+        var result = await HoaDonService.Add(hoaDon);
+
+        if (result != null)
+        {
+
+            foreach (var item in CurrentOrder.Products)
+            {
+                var hoadonchitiet = new HoaDonChiTiet()
+                {
+                    DonGia = (decimal)item.Gia, // giá 1 sản phẩm
+                    Gia = (decimal)item.Gia * (decimal)item.SoLuongDat,
+                    GiayChiTietId = item.GiayChiTietId,
+                    HoaDonId = result.HoaDonId,
+                    SoLuongSanPham = item.SoLuongDat,
+                    TrangThai = true,
+                };
+                var result3 = await HoaDonChiTietService.Create(hoadonchitiet);
+                if (result3 != null)
+                {
+
+                }
+                else
+                {
+                    continue;
+                }
+            }
+            foreach (var item2 in CurrentOrder.Products)
+            {
+                var giaychitiet = await GiayChiTietService.GetByIdAsync(item2.GiayChiTietId);
+
+                giaychitiet.SoLuongCon -= item2.SoLuongDat;
+
+                var result4 = await GiayChiTietService.UpdateAsync(item2.GiayChiTietId, giaychitiet);
+
+                if (result4 == null)
+                {
+                    await JS.InvokeVoidAsync("Swal.fire", new
+                    {
+                        icon = "error",
+                        title = "Lỗi cập nhật kho",
+                        text = $"Không thể cập nhật sản phẩm {item2.TenGiay}"
+                    });
+
+                    return;
+                }
+            }
+            await JS.InvokeVoidAsync("Swal.fire", new
+            {
+                icon = "success",
+                title = "Thành công",
+                text = "Đơn hàng đã được ghi nhận."
+            });
+
+            // Xóa đơn hiện tại
+            await RemoveOrder(CurrentOrderIndex);
+
+            // Reset dữ liệu form
+            CustomerPay = 0;
+            DiscountPercent = 0;
+            selectedVoucher = null;
+            voucherError = "";
+
+            Tinh = "";
+            Huyen = "";
+            Phuong = "";
+
+            HuyenXa = new();
+            XaPhuong = new();
+
+            StateHasChanged();
+        }
+        else
+        {
+            await JS.InvokeVoidAsync("Swal.fire", new
+            {
+                icon = "warning",
+                title = "Lỗi!",
+                text = "Có lỗi khi lưu đơn hàng."
+            });
+        }
+
+
+
+    }
+
+    private string FormatMoney(float amount)
+    {
+        return string.Format("{0:N0} VND", amount);
+    }
+    private bool IsProductModalVisible = false;
+
+    private async Task HandleAddProduct(GiayChiTietDTO item)
+    {
+        if (CurrentOrder == null) return;
+
+        var existing = CurrentOrder.Products.Find(x => x.GiayChiTietId == item.GiayChiTietId);
+        if (existing != null)
+        {
+            existing.SoLuongDat += item.SoLuongDat;
+            if (existing.SoLuongDat > existing.SoLuongCon)
+            {
+                existing.SoLuongDat = existing.SoLuongCon;
+            }
+        }
+        else
+        {
+
+            var newProduct = new GiayChiTietDTO
+            {
+                GiayChiTietId = item.GiayChiTietId,
+                GiayId = item.GiayId,
+                TenGiay = item.TenGiay,
+                MauSacId = item.MauSacId,
+                KichCoId = item.KichCoId,
+                GiaGoc = item.GiaGoc,
+                SoLuongCon = item.SoLuongCon,
+                Gia = item.Gia,
+                AnhGiay = item.AnhGiay,
+                size = item.size,
+                SoLuongDat = item.SoLuongDat > 0 ? item.SoLuongDat : 1,
+                TrangThai = item.TrangThai
+            };
+
+            CurrentOrder.Products.Add(newProduct);
+        }
+
+
+        item.SoLuongDat = 1;
+        await SaveOrdersToStorage();
+
+    }
+
+    private bool IsCustomerModalVisible = false;
+    private List<DiaChiKhachHang> diaChiKhachHangs = new();
+    private async Task HandleCustomerSelected(KhachHang kh)
+    {
+        CurrentOrder.Customer = kh;
+
+        CurrentOrder.ThongTinHoaDon.TenNguoiNhan = kh.HoTen;
+        CurrentOrder.ThongTinHoaDon.Sdt = kh.SoDienThoai;
+
+
+    }
+    private void Khachle()
+    {
+        CurrentOrder.Customer = null;
+
+        CurrentOrder.ThongTinHoaDon.TenNguoiNhan = "Khách lẻ";
+        CurrentOrder.ThongTinHoaDon.Sdt = "";
+
+        CurrentOrder.ThongTinHoaDon.IsDelivery = false;
+    }
+
+    private bool IsAddressModalVisible = false;
+
+    private void HandleAddressSelected(DiaChiKhachHang diaChi)
+    {
+        CurrentOrder.Address = diaChi;
+
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        TinhThanh = await xuLyDiaChi.ParseDiaChiAsync("wwwroot/Files/ThanhPho.txt");
+
+        vouchers = await voucherService.GetAll();
+        vouchers = vouchers.Where(x => x.TrangThai == true).ToList();
+
+        // Lấy khách lẻ mặc định
+        var allKhachHang = await khachHangService.GetAll();
+
+        var khachLe = allKhachHang.FirstOrDefault(x => x.HoTen == "Khách lẻ");
+
+        if (khachLe != null)
+        {
+            KhachLeId = khachLe.KhachHangId;
+        }
+    }
+    private string Tinh = "";
+    void OnTinhChanged(ChangeEventArgs e)
+    {
+        Tinh = e.Value?.ToString();
+        CurrentOrder.ThongTinHoaDon.TinhThanhPho = Tinh;
+
+        var tinh = TinhThanh.FirstOrDefault(t => t.Ten == Tinh);
+        HuyenXa = tinh?.Con ?? new();
+        XaPhuong = new();
+
+        Huyen = "";
+        Phuong = "";
+
+        CurrentOrder.ThongTinHoaDon.QuanHuyen = "";
+        CurrentOrder.ThongTinHoaDon.XaPhuongThiTran = "";
+    }
+
+    private string Huyen = "";
+    void OnHuyenChanged(ChangeEventArgs e)
+    {
+        Huyen = e.Value?.ToString();
+        CurrentOrder.ThongTinHoaDon.QuanHuyen = Huyen;
+
+        var huyen = HuyenXa.FirstOrDefault(h => h.Ten == Huyen);
+        XaPhuong = huyen?.Con ?? new();
+
+        Phuong = "";
+        CurrentOrder.ThongTinHoaDon.XaPhuongThiTran = "";
+    }
+
+    private string Phuong = "";
+    void OnXaPhuongChanged(ChangeEventArgs e)
+    {
+        Phuong = e.Value?.ToString();
+        CurrentOrder.ThongTinHoaDon.XaPhuongThiTran = Phuong;
+    }
+    string voucherError = "";
+    async Task OnVoucherChange(ChangeEventArgs e)
+    {
+        string selectedvoucher = e.Value?.ToString()?.Trim();
+
+        var voucher = vouchers.FirstOrDefault(v => v.TenVoucher == selectedvoucher);
+
+        // reset
+        voucherError = "";
+        DiscountPercent = 0;
+        selectedVoucher = null;
+
+        if (voucher == null)
+        {
+            voucherError = "Voucher không tồn tại";
+            StateHasChanged();
+            return;
+        }
+
+        if (!voucher.TrangThai)
+        {
+            voucherError = "Phiếu giảm giá đã hết hạn hoặc không còn hiệu lực.";
+            return;
+        }
+
+        if (Subtotal < voucher.DieuKienToiThieu)
+        {
+            voucherError = $"Cần tối thiểu {FormatMoney(voucher.DieuKienToiThieu)}";
+            return;
+        }
+
+        if (voucher.PhanTram <= 0 && voucher.SoTienGiam <= 0)
+        {
+            voucherError = "Voucher không hợp lệ";
+            return;
+        }
+
+        selectedVoucher = voucher;
+
+        if (voucher.PhanTram > 0)
+        {
+            DiscountPercent = voucher.PhanTram;
+        }
+        else
+        {
+            DiscountPercent = 0;
+        }
+
+        StateHasChanged();
+    }
+    private async Task SaveOrdersToStorage()
+    {
+        await LocalStorage.SetItemAsync("banhang_orders", Orders);
+        await LocalStorage.SetItemAsync("banhang_currentIndex", CurrentOrderIndex);
+    }
+    private string GetFullImageUrl(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return "/images/no-image.png";
+
+        if (path.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            return path;
+
+        if (!path.StartsWith("/"))
+            path = "/" + path;
+
+        return $"{BaseApiUrl.TrimEnd('/')}{path}";
+    }
+}
+<style>
+    .choose-voucher-btn {
+        width: 100%;
+        padding: 12px;
+        border: none;
+        background: #ff5722;
+        color: white;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .voucher-modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    }
+
+    .voucher-modal {
+        width: 500px;
+        max-height: 80vh;
+        overflow: auto;
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+    }
+
+    .voucher-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .close-btn {
+        border: none;
+        background: none;
+        font-size: 24px;
+        cursor: pointer;
+    }
+
+    .voucher-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .voucher-card {
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: 0.2s;
+    }
+
+        .voucher-card:hover {
+            border-color: #ff5722;
+        }
+
+        .voucher-card.disabled {
+            opacity: 0.5;
+            pointer-events: auto;
+        }
+
+    .voucher-name {
+        font-weight: 700;
+        font-size: 16px;
+    }
+
+    .voucher-condition {
+        color: #666;
+        margin-top: 4px;
+    }
+
+    .voucher-discount {
+        color: #ff5722;
+        font-weight: 600;
+        margin-top: 6px;
+    }
+
+    .select-voucher-btn {
+        background: #ff5722;
+        color: white;
+        border: none;
+        padding: 10px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+
+        .select-voucher-btn:disabled {
+            background: #999;
+            cursor: not-allowed;
+        }
+
+    .voucher-area {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .choose-voucher-btn {
+        flex: 1;
+        height: 42px;
+        padding: 0 12px;
+        border: none;
+        background: #ff5722;
+        color: white;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        text-align: center;
+    }
+
+    .discount-input {
+        width: 120px;
+        height: 42px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        text-align: center;
+        font-weight: 600;
+        background: #f5f5f5;
+    }
+
+    .voucher-card {
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.25s ease;
+        cursor: pointer;
+        background: white;
+    }
+
+        .voucher-card:hover {
+            border-color: #ff5722;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255,87,34,0.15);
+        }
+
+        .voucher-card.active {
+            border: 2px solid #ff5722;
+            background: #fff3ee;
+            box-shadow: 0 0 0 3px rgba(255,87,34,0.15);
+        }
+
+            .voucher-card.active .voucher-name {
+                color: #ff5722;
+            }
+
+    .select-voucher-btn {
+        transition: all 0.2s ease;
+    }
+
+        .select-voucher-btn:hover {
+            transform: scale(1.05);
+        }
+
+    .voucher-code-input {
+        flex: 1;
+        height: 42px;
+        padding: 0 12px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-weight: 500;
+        outline: none;
+        transition: all 0.2s ease;
+        background: #fff;
+    }
+
+        .voucher-code-input:focus {
+            border-color: #ff5722;
+            box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.15);
+        }
+
+        .voucher-code-input::placeholder {
+            color: #aaa;
+            font-size: 13px;
+        }
+</style>

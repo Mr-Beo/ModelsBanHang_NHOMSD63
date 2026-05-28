@@ -1,0 +1,397 @@
+﻿@page "/admin/hoadon"
+@layout AdminLayout
+@inject IHoaDonService HoaDonService
+@inject IHoaDonChiTietService HoaDonChiTietService
+@inject IJSRuntime JS
+@inject NavigationManager NavigationManager
+
+@using Data.Models
+<link href="/css/HoaDon.css" rel="stylesheet" />
+<h2 class="text-xl font-semibold mb-4">Quản lý đơn hàng</h2>
+<style>
+    .table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        border-radius: 10px;
+    }
+
+        .table-wrapper table {
+            min-width: 1600px;
+        }
+
+    .pagination {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 20px;
+        flex-wrap: wrap;
+    }
+
+        .pagination button {
+            border: none;
+            padding: 8px 14px;
+            border-radius: 8px;
+            background: #f1f1f1;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+            .pagination button:hover {
+                background: #dbeafe;
+            }
+
+            .pagination button.active {
+                background: #2563eb;
+                color: white;
+                font-weight: bold;
+            }
+
+            .pagination button:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+</style>
+<!-- Ô tìm kiếm và nút tải lại -->
+<div class="search-row">
+    <input @bind="TuKhoa" @bind:event="oninput" placeholder="Tìm kiếm..." />
+    <button @onclick="TaiLai">Tải lại</button>
+</div>
+
+<!-- Tabs lọc theo trạng thái -->
+<div class="tabs">
+    @foreach (var trangThaiItem in TrangThaiList)
+    {
+        <button class="@(TrangThai == trangThaiItem ? "active" : "")"
+                @onclick='() => LocTheoTrangThai(trangThaiItem)'>
+            @trangThaiItem
+        </button>
+    }
+</div>
+
+<!-- Bảng danh sách hóa đơn -->
+<div class="table-wrapper">
+    <table class="table-auto w-full text-sm">
+    <thead>
+        <tr class="bg-gray-100">
+            <th class="p-2">#</th>
+            <th class="p-2">Mã đơn</th>
+            <th class="p-2">Tổng SP</th>
+            <th class="p-2">Tổng tiền</th>
+            <th class="p-2">Khách hàng</th>
+            <th class="p-2">SĐT</th>
+            <th class="p-2">Địa chỉ</th>
+            <th class="p-2">Ngày tạo</th>
+            <th class="p-2">Loại</th>
+            <th class="p-2">Trạng thái</th>
+            <th class="p-2">Hành động</th>
+            <th class="p-2 text-center">Chi tiết đơn hàng</th>
+        </tr>
+    </thead>
+    <tbody>
+        @if (DanhSachHoaDon?.Any() == true)
+        {
+            var stt = 1;
+            foreach (var hoaDon in DanhSachHoaDon)
+                {
+                    var chiTiets = ChiTietTheoHoaDon.GetValueOrDefault(hoaDon.HoaDonId);
+
+                    var tongSoSP = chiTiets?.Sum(c => c.SoLuongSanPham) ?? 0;
+
+                    decimal tongTien =
+                    hoaDon.TongTienSauKhiGiam > 0
+                    ? (decimal)hoaDon.TongTienSauKhiGiam
+                    : (chiTiets?.Sum(c => c.Gia) ?? 0m)
+                    + (decimal)hoaDon.PhiShip;
+
+                <tr class="border-b">
+                    <td class="p-2">@stt</td>
+                    <td class="p-2">
+                        @(hoaDon.HoaDonId.ToString().Length >= 8
+                                        ? hoaDon.HoaDonId.ToString().Substring(0, 8)
+                                        : hoaDon.HoaDonId.ToString())
+            </td>
+                    <td class="p-2">@tongSoSP</td>
+                    <td class="p-2">@tongTien.ToString("N0") đ</td>
+                    <td class="p-2">@(string.IsNullOrWhiteSpace(hoaDon.khachHang?.HoTen) ? "Khách lẻ" : hoaDon.khachHang.HoTen)</td>
+                    <td class="p-2">  @hoaDon.SoDienThoai</td>
+                    <td class="p-2" style="max-width:220px">
+                        @hoaDon.DiaChi
+                    </td>
+                    <td class="p-2">@hoaDon.NgayTao.ToString("dd/MM/yyyy HH:mm")</td>
+                    <td class="p-2">@hoaDon.hinhThucThanhToan?.TenHinhThuc</td>
+            <td class="p-2">
+                <div class="badge @(GetBadgeClass(hoaDon.TrangThai))">
+                    @hoaDon.TrangThai
+                </div>
+
+                        <div class="text-muted small mt-1">
+                    @switch (hoaDon.TrangThai)
+                            {
+                                case "Chờ xác nhận":
+                                    <span>@hoaDon.NgayTao.ToString("dd/MM HH:mm")</span>
+                                    break;
+
+                                case "Chờ giao hàng":
+                                    <span>@hoaDon.TGXacNhan?.ToString("dd/MM HH:mm")</span>
+                                    break;
+
+                                case "Đang giao hàng":
+                                    <span>@hoaDon.DangGiao?.ToString("dd/MM HH:mm")</span>
+                                    break;
+
+                                case "Hoàn thành":
+                                    <span>@hoaDon.HoanThanh?.ToString("dd/MM HH:mm")</span>
+                                    break;
+
+                                case "Đã hủy":
+                                    <span>@hoaDon.NgayHuy?.ToString("dd/MM HH:mm")</span>
+                                    break;
+                            }
+                        </div>
+                    </td>
+            <td class="p-2 space-x-1">
+                @switch (hoaDon.TrangThai)
+                        {
+                            case "Chờ xác nhận":
+                                <button class="btn btn-sm btn-primary"
+                                        @onclick="() => XacNhanDon(hoaDon.HoaDonId)">
+                                    Xác nhận
+                                </button>
+
+                                <button class="btn btn-sm btn-danger"
+                                        @onclick="() => HuyDon(hoaDon.HoaDonId)">
+                                    Huỷ
+                                </button>
+                                break;
+
+                            case "Chờ giao hàng":
+                                <button class="btn btn-sm btn-warning"
+                                        @onclick="() => BatDauGiao(hoaDon.HoaDonId)">
+                                    Giao hàng
+                                </button>
+                                break;
+
+                            case "Đang giao hàng":
+                                <button class="btn btn-sm btn-success"
+                                        @onclick="() => GiaoThanhCong(hoaDon.HoaDonId)">
+                                    Hoàn thành
+                                </button>
+                                break;
+
+                            default:
+                                <span class="text-muted">—</span>
+                                break;
+                        }
+                    </td>
+                    <td class="p-2 text-center">
+                        <button class="btn btn-sm btn-info"
+                                @onclick="() => XemChiTiet(hoaDon.HoaDonId)">
+                            Xem chi tiết
+                        </button>
+                    </td>
+
+                </tr>
+
+                stt++;
+            }
+        }
+        else
+        {
+            <tr>
+                <td colspan="9" class="text-center text-gray-500 p-4">Chưa có dữ liệu</td>
+            </tr>
+        }
+    </tbody>
+
+
+</table>
+</div>
+<div class="pagination">
+
+    <button @onclick="() => ChuyenTrang(CurrentPage - 1)"
+            disabled="@(CurrentPage == 1)">
+        Trước 
+    </button>
+
+    @for (int i = 1; i <= TotalPages; i++)
+    {
+        var pageNumber = i;
+
+        <button class="@(CurrentPage == pageNumber ? "active" : "")"
+                @onclick="() => ChuyenTrang(pageNumber)">
+            @pageNumber
+        </button>
+    }
+
+    <button @onclick="() => ChuyenTrang(CurrentPage + 1)"
+            disabled="@(CurrentPage == TotalPages)">
+        Sau
+    </button>
+
+</div>
+@code {
+    private List<HoaDon> DanhSachHoaDon;
+    private List<HoaDonChiTiet> DanhSachChiTiet;
+    private Dictionary<Guid, List<HoaDonChiTiet>> ChiTietTheoHoaDon = new();
+    private HoaDon selectedHoaDon;
+private List<HoaDonChiTiet> selectedChiTiet;
+
+    private string TuKhoa;
+    private string TrangThai;
+
+    private int CurrentPage = 1;
+    private int PageSize = 10;
+    private int TotalPages;
+    private readonly List<string> TrangThaiList = new()
+{
+    "TẤT CẢ",
+    "Chờ xác nhận",
+    "Chờ giao hàng",
+    "Đang giao hàng",
+    "Hoàn thành",
+    "Đã hủy"
+};
+
+    protected override async Task OnInitializedAsync()
+    {
+        await TaiLai();
+    }
+
+    private async Task TaiLai()
+    {
+        var allHoaDon = await HoaDonService.GetAll();
+        DanhSachChiTiet = await HoaDonChiTietService.GetAllAsync();
+
+        ChiTietTheoHoaDon = DanhSachChiTiet
+            .GroupBy(ct => ct.HoaDonId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        //  tạo query
+        var query = allHoaDon.AsQueryable();
+        DanhSachHoaDon = allHoaDon?
+            .Where(hd => string.IsNullOrEmpty(TuKhoa) || hd.khachHang?.HoTen.Contains(TuKhoa, StringComparison.OrdinalIgnoreCase) == true)
+            .ToList();
+
+        if (!string.IsNullOrEmpty(TrangThai) && TrangThai != "TẤT CẢ")
+        {
+            DanhSachHoaDon = DanhSachHoaDon
+                .Where(hd => hd.TrangThai == TrangThai)
+                .ToList();
+        }
+        // lọc trạng thái
+        if (!string.IsNullOrEmpty(TrangThai) &&
+            TrangThai != "TẤT CẢ")
+        {
+            query = query.Where(hd => hd.TrangThai == TrangThai);
+        }
+
+        // tổng số trang
+        var totalItems = query.Count();
+
+        TotalPages = (int)Math.Ceiling(
+            totalItems / (double)PageSize);
+
+        // phân trang
+        DanhSachHoaDon = query
+            .Skip((CurrentPage - 1) * PageSize)
+            .Take(PageSize)
+            .ToList();
+    }
+
+    private async Task LocTheoTrangThai(string tt)
+    {
+        TrangThai = tt;
+        CurrentPage = 1;
+
+        await TaiLai();
+    }
+
+    private string GetBadgeClass(string status) => status switch
+    {
+        "Hoàn thành" => "badge-purple",
+        "Chờ xác nhận" => "badge-blue",
+        "Chờ giao hàng" => "badge-orange",
+        "Đang giao hàng" => "badge-blue",
+        "Đã hủy" => "badge-red",
+        _ => "badge-gray"
+    };
+
+    private async Task HuyDon(Guid hoaDonId)
+    {
+        bool xacNhan = await JS.InvokeAsync<bool>("confirm", "Bạn có chắc muốn huỷ đơn hàng này không?");
+        if (!xacNhan) return;
+
+        try
+        {
+            await HoaDonService.HuyDon(hoaDonId); 
+            await TaiLai();
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", "Huỷ đơn thất bại: " + ex.Message);
+        }
+    }
+
+    private async Task CapNhatTrangThai(Guid hoaDonId, string trangThaiMoi)
+    {
+        var hoaDon = await HoaDonService.GetById(hoaDonId);
+        if (hoaDon != null)
+        {
+            hoaDon.TrangThai = trangThaiMoi;
+            await HoaDonService.Update(hoaDon);
+            await TaiLai();
+        }
+    }
+
+    private bool showModal = false;
+
+
+
+   
+    private async Task XacNhanDon(Guid id)
+    {
+        bool ok = await JS.InvokeAsync<bool>("confirm", "Xác nhận đơn hàng này?");
+        if (!ok) return;
+
+        var result = await HoaDonService.XacNhanDon(id);
+
+        await JS.InvokeVoidAsync("alert", result.Message);
+
+        if (result.Success)
+        {
+            await TaiLai();
+        }
+    }
+
+    private async Task BatDauGiao(Guid id)
+    {
+        bool ok = await JS.InvokeAsync<bool>("confirm", "Bắt đầu giao đơn này?");
+        if (!ok) return;
+
+        await HoaDonService.BatDauGiao(id);
+        await TaiLai();
+    }
+
+    private async Task GiaoThanhCong(Guid id)
+    {
+        bool ok = await JS.InvokeAsync<bool>("confirm", "Xác nhận đơn đã giao thành công?");
+        if (!ok) return;
+
+        await HoaDonService.GiaoThanhCong(id);
+        await TaiLai();
+    }
+    private void XemChiTiet(Guid hoaDonId)
+    {
+        NavigationManager.NavigateTo($"/admin/hoadonchitiet/{hoaDonId}");
+    }
+  
+    private async Task ChuyenTrang(int page)
+    {
+        if (page < 1 || page > TotalPages)
+            return;
+
+        CurrentPage = page;
+
+        await TaiLai();
+    }
+}

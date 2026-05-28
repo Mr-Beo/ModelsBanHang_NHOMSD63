@@ -1,0 +1,323 @@
+﻿@page "/KieuDang"
+@using API.Models.DTO
+@inject IKieuDangService kieuDangService
+@inject IJSRuntime JS
+<script src="js/site.js"></script>
+<h4 class="mb-3">✨ Quản lý kiểu dáng</h4>
+
+<div class="row mb-4 text-center">
+    <div class="col-md-4">
+        <div class="bg-light border rounded p-4 shadow-sm h-100">
+            <h6 class="text-muted">Tổng số kiểu dáng</h6>
+            <h4>@danhSach.Count</h4>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="bg-light border rounded p-4 shadow-sm h-100">
+            <h6 class="text-muted">Kiểu dáng đang hoạt động</h6>
+            <h4>@danhSach.Count(v => v.TrangThai)</h4>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="bg-light border rounded p-4 shadow-sm h-100">
+            <h6 class="text-muted">Kiểu dáng ngừng hoạt động</h6>
+            <h4>@danhSach.Count(v => !v.TrangThai)</h4>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm p-4">
+    <!-- Tìm kiếm -->
+    <div class="d-flex justify-content-between mb-3">
+        <input type="text" class="form-control w-50" placeholder="🔍 Tìm tên kiểu dáng..." @bind="searchTerm" @bind:event="oninput" />
+        <button class="btn btn-outline-primary" @onclick="ShowAddForm">➕ Thêm mới</button>
+    </div>
+
+    <!-- Modal thêm/sửa -->
+    <div class="modal fade" id="kieuDangModal" tabindex="-1" aria-labelledby="kieuDangModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="kieuDangModalLabel">@(IsEdit ? "Sửa kiểu dáng" : "Thêm kiểu dáng")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    <EditForm Model="FormData" OnValidSubmit="SubmitForm">
+                        <DataAnnotationsValidator />
+                        <div class="mb-3">
+                            <label class="form-label">Tên kiểu dáng</label>
+                            <InputText class="form-control" @bind-Value="FormData.TenKieuDang" />
+                            <ValidationMessage For="@(() => FormData.TenKieuDang)" class="validation-message" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Mô tả</label>
+                            <InputTextArea class="form-control" @bind-Value="FormData.MoTa" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-check-label">
+                                <InputCheckbox class="form-check-input" @bind-Value="FormData.TrangThai" />
+                                Hiển thị
+                            </label>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" @onclick="CloseModal">Đóng</button>
+                            <button type="submit" class="btn btn-primary">Lưu</button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Popup xác nhận xóa (giữ nguyên) -->
+    <DeleteKieuDang Item="SelectedItem"
+                    IsVisible="IsConfirmVisible"
+                    OnDelete="DeleteItem"
+                    OnCancel="() => IsConfirmVisible = false" />
+
+    <!-- Bảng dữ liệu -->
+    <table class="table table-bordered table-hover">
+        <thead class="table-light">
+            <tr>
+                <th style="width: 60px;">STT</th>
+                <th>Tên kiểu dáng</th>
+                <th>Mô tả</th>
+                <th>Trạng thái</th>
+                <th style="width: 120px;">Chức năng</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (PagedList.Count == 0)
+            {
+                <tr><td colspan="5" class="text-center text-muted">Không tìm thấy kết quả.</td></tr>
+            }
+            else
+            {
+                @foreach (var (item, index) in PagedList.Select((value, i) => (value, i)))
+                {
+                    <tr>
+                        <td>@((CurrentPage - 1) * PageSize + index + 1)</td>
+                        <td>@item.TenKieuDang</td>
+                        <td>@item.MoTa</td>
+                        <td>
+                            <span class="badge bg-@(item.TrangThai ? "success" : "secondary")">
+                                @(item.TrangThai ? "Đang hoạt động" : "Ngừng hoạt động")
+                            </span>
+                        </td>
+                        <td>
+                            <i class="bi bi-pencil-square text-primary" style="cursor:pointer" @onclick="@(() => Edit(item))"></i>
+                            <i class="bi bi-trash text-danger ms-2" style="cursor:pointer" @onclick="@(() => ConfirmDelete(item))"></i>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+
+    <!-- Phân trang -->
+    <div class="d-flex justify-content-between align-items-center mt-3">
+        <div>
+            Xem
+            <select class="form-select d-inline-block w-auto" @onchange="OnPageSizeChanged">
+                <option value="5">5</option>
+                <option value="10">10</option>
+            </select>
+            kiểu dáng
+        </div>
+        <nav>
+            <ul class="pagination mb-0">
+                <li class="page-item @(CurrentPage == 1 ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => ChangePage(CurrentPage - 1)">‹</button>
+                </li>
+                @for (int i = 1; i <= TotalPages; i++)
+                {
+                    <li class="page-item @(CurrentPage == i ? "active" : "")">
+                        <button class="page-link" @onclick="() => ChangePage(i)">@i</button>
+                    </li>
+                }
+                <li class="page-item @(CurrentPage == TotalPages ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => ChangePage(CurrentPage + 1)">›</button>
+                </li>
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    @if (!string.IsNullOrEmpty(ToastMessage))
+    {
+        <div class="toast show text-white bg-success border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">@ToastMessage</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" @onclick="() => ToastMessage = null"></button>
+            </div>
+        </div>
+    }
+</div>
+<style>
+    .validation-message {
+        color: red;
+        font-size: 1rem;
+    }
+</style>
+
+@code {
+    private List<KieuDangDTO> danhSach = new();
+    private string searchTerm = string.Empty;
+    private int CurrentPage = 1;
+    private int PageSize = 5;
+
+    private KieuDangDTO FormData = new();
+    private bool IsEdit = false;
+    private KieuDangDTO? SelectedItem;
+    private bool IsConfirmVisible = false;
+    private string? ToastMessage;
+
+    private List<KieuDangDTO> FilteredList =>
+        danhSach.Where(x => string.IsNullOrWhiteSpace(searchTerm) || x.TenKieuDang.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private List<KieuDangDTO> PagedList =>
+        FilteredList.Skip((CurrentPage - 1) * PageSize).Take(PageSize).ToList();
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling((double)FilteredList.Count / PageSize));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        danhSach = (await kieuDangService.GetAllAsync()).ToList();
+    }
+
+    private void ChangePage(int page)
+    {
+        if (page > 0 && page <= TotalPages)
+            CurrentPage = page;
+    }
+
+    private void OnPageSizeChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int size))
+        {
+            PageSize = size;
+            CurrentPage = 1;
+        }
+    }
+
+    private async Task ShowAddForm()
+    {
+        IsEdit = false;
+        FormData = new KieuDangDTO { TrangThai = true };
+        await JS.InvokeVoidAsync("showModal", "kieuDangModal");
+    }
+
+    private async Task Edit(KieuDangDTO item)
+    {
+        IsEdit = true;
+        FormData = new KieuDangDTO
+        {
+            KieuDangId = item.KieuDangId,
+            TenKieuDang = item.TenKieuDang,
+            MoTa = item.MoTa,
+            TrangThai = item.TrangThai
+        };
+        await JS.InvokeVoidAsync("showModal", "kieuDangModal");
+    }
+
+    private async Task CloseModal()
+    {
+        await JS.InvokeVoidAsync("hideModal", "kieuDangModal");
+    }
+
+    private async Task SubmitForm()
+    {
+        FormData.TenKieuDang = FormData.TenKieuDang.Trim();
+
+        bool isDuplicate;
+
+        // Khi sửa -> bỏ qua chính nó
+        if (IsEdit)
+        {
+            isDuplicate = danhSach
+                .Where(x => x.KieuDangId != FormData.KieuDangId)
+                .Any(x => x.TenKieuDang.Trim()
+                .Equals(FormData.TenKieuDang,
+                StringComparison.OrdinalIgnoreCase));
+        }
+        else
+        {
+            isDuplicate = danhSach
+                .Any(x => x.TenKieuDang.Trim()
+                .Equals(FormData.TenKieuDang,
+                StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (isDuplicate)
+        {
+            ToastMessage = "Tên kiểu dáng đã tồn tại!";
+            StateHasChanged();
+
+            await Task.Delay(3000);
+            ToastMessage = null;
+            return;
+        }
+
+        bool result;
+
+        if (IsEdit)
+        {
+            var updated = await kieuDangService.UpdateAsync(FormData.KieuDangId, FormData);
+            result = updated != null;
+        }
+        else
+        {
+            var created = await kieuDangService.CreateAsync(FormData);
+            result = created != null;
+        }
+
+        if (result)
+        {
+            ToastMessage = IsEdit
+                ? "Cập nhật thành công!"
+                : "Thêm thành công!";
+
+            await LoadData();
+            await CloseModal();
+        }
+        else
+        {
+            ToastMessage = "Đã xảy ra lỗi!";
+        }
+
+        StateHasChanged();
+
+        await Task.Delay(3000);
+        ToastMessage = null;
+    }
+
+    private void ConfirmDelete(KieuDangDTO item)
+    {
+        SelectedItem = item;
+        IsConfirmVisible = true;
+    }
+
+    private async Task DeleteItem()
+    {
+        if (SelectedItem != null)
+        {
+            var result = await kieuDangService.DeleteAsync(SelectedItem.KieuDangId);
+            ToastMessage = result ? "Xoá thành công!" : "Xoá thất bại!";
+            IsConfirmVisible = false;
+
+            if (result)
+                await LoadData();
+
+            StateHasChanged();
+            await Task.Delay(3000);
+            ToastMessage = null;
+        }
+    }
+}

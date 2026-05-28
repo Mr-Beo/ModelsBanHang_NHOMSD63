@@ -1,0 +1,355 @@
+﻿@page "/Cart"
+@rendermode InteractiveServer
+@using API.Models.DTO
+@using BlazorKhachHang.Service.IService
+@inject IGioHangService GioHangService
+@inject NavigationManager manager
+@inject IJSRuntime JS
+@inject IGiayService GiayService
+@inject IGiayChiTietService chiTietService
+@inject CartState CartState // hiển thị số lượng sản phẩm trong giỏ
+
+<div class="container py-5">
+    <div class="d-flex align-items-center mb-4">
+        <i class="bi bi-cart3 fs-2 me-3 text-primary"></i>
+        <h2 class="fw-bold m-0">Giỏ hàng của bạn</h2>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="d-flex justify-content-center align-items-center" style="min-height: 300px;">
+            <div class="spinner-grow text-primary" role="status"></div>
+        </div>
+    }
+    else if (gioHang == null || !gioHang.DanhSachChiTiet.Any())
+    {
+        <div class="text-center py-5 bg-white shadow-sm rounded-4 border">
+            <img src="https://cdn-icons-png.flaticon.com/512/11329/11329060.png" width="120" class="mb-3 opacity-50" />
+            <p class="text-muted fs-5">Chưa có sản phẩm nào. Tiếp tục sắm đồ nhé!</p>
+            <button class="btn btn-dark btn-lg px-5 mt-2 rounded-pill shadow-sm" @onclick='() => manager.NavigateTo("/")'>
+                MUA SẮM NGAY
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            <div class="col-lg-8">
+                @foreach (var item in gioHang.DanhSachChiTiet)
+                {
+                    <div class="card mb-3 border-0 shadow-sm rounded-3 overflow-hidden">
+                        <div class="card-body p-0">
+                            <div class="row g-0 align-items-center">
+                                <div class="col-1 d-flex justify-content-center border-end">
+                                    <div class="form-check">
+                                        <input class="form-check-input custom-checkbox"
+                                               type="checkbox"
+                                               @bind="item.IsSelected"
+                                               style="width: 1.5rem; height: 1.5rem; cursor: pointer;" />
+                                    </div>
+                                </div>
+
+                                <div class="col-2 col-md-2 bg-light d-flex align-items-center justify-content-center"
+                                     style="min-height: 100px; cursor:pointer"
+                                     @onclick="() => XemChiTiet(item)">
+                                    <img src="@GetFullImageUrl(item.HinhAnh)"
+                                         class="img-fluid rounded"
+                                         style="max-height: 80px; object-fit: cover;"
+                                         onerror="this.onerror=null;this.src='/images/no-image.png';" />
+                                </div>
+
+                                <div class="col-9 col-md-9 p-3">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+
+                                            <h6 class="fw-bold text-dark mb-1">@item.TenGiay</h6>
+
+                                            <div class="text-muted small mb-2">
+                                                @if (!string.IsNullOrEmpty(item.Size))
+                                                {
+                                                    <span>Size: <strong>@item.Size</strong></span>
+                                                }
+
+                                                @if (!string.IsNullOrEmpty(item.MauSac))
+                                                {
+                                                    <span class="ms-3">Màu: <strong>@item.MauSac</strong></span>
+                                                }
+                                            </div>
+
+                                            <div class="d-flex gap-2 flex-wrap">
+                                                @if (!string.IsNullOrEmpty(item.Size))
+                                                {
+                                                    <span class="badge bg-light text-dark border fw-normal">
+                                                        Size: @item.Size
+                                                    </span>
+                                                }
+
+                                                @if (!string.IsNullOrEmpty(item.MauSac))
+                                                {
+                                                    <span class="badge bg-light text-dark border fw-normal">
+                                                        Màu: @item.MauSac
+                                                    </span>
+                                                }
+
+                                                <span class="badge bg-light text-dark border fw-normal">
+                                                    SL: @item.SoLuong
+                                                </span>
+                                            </div>
+
+                                            <h5 class="text-danger fw-bold m-0">@item.Gia.ToString("N0") VNĐ</h5>
+                                        </div>
+
+                                        @* Nút Xóa - Đã đóng thẻ button chuẩn *@
+                                        <button class="btn btn-link text-muted p-0" @onclick="() => Xoa(item.GioHangChiTietId)">
+                                            <i class="bi bi-trash3 fs-5"></i>
+                                        </button>
+                                    </div>
+
+                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                        @* Cụm tăng giảm số lượng *@
+                                        <div class="input-group input-group-sm w-auto border rounded-2">
+                                            <button class="btn btn-white border-0" @onclick="() => UpdateQuantity(item, -1)">-</button>
+                                            <input type="text" class="form-control border-0 text-center bg-white" readonly value="@item.SoLuong" style="width: 45px;" />
+                                            <button class="btn btn-white border-0" @onclick="() => UpdateQuantity(item, 1)">+</button>
+                                        </div>
+
+                                        <div class="text-end">
+                                            <small class="text-muted d-block">Thành tiền:</small>
+                                            @* Dùng ThanhTien từ DTO luôn cho gọn *@
+                                            <span class="fw-bold text-primary">@item.ThanhTien.ToString("N0") VNĐ</span>
+                                        </div>
+
+
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="col-lg-4">
+                @{
+                    var selectedTotal = gioHang.DanhSachChiTiet
+                    .Where(x => x.IsSelected)
+                    .Sum(x => x.ThanhTien);
+                }
+
+                <div class="card border-0 shadow-sm rounded-4 p-4 sticky-top" style="top: 20px;">
+                    <h5 class="fw-bold mb-4">Tóm tắt đơn hàng</h5>
+
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted">Tạm tính</span>
+                        <span class="fw-semibold">@selectedTotal.ToString("N0") VNĐ</span>
+                    </div>
+
+                    <div class="d-flex justify-content-between mb-4">
+                        <span class="text-muted">Phí vận chuyển</span>
+                        <span class="text-success fw-semibold">Miễn phí</span>
+                    </div>
+
+                    <hr />
+
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <span class="fs-5">Tổng cộng</span>
+                        <span class="fs-4 fw-bold text-danger">@selectedTotal.ToString("N0") VNĐ</span>
+                    </div>
+
+                    <button class="btn btn-primary btn-lg w-100 py-3 rounded-3 fw-bold shadow"
+                            disabled="@(selectedTotal == 0)"
+                            @onclick="CheckoutSelected">
+                        THANH TOÁN NGAY
+                    </button>
+
+                    <div class="mt-3 text-center">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5e/Visa_Inc._logo.svg/2560px-Visa_Inc._logo.svg.png"
+                             height="15" class="me-2 grayscale" />
+
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/Mastercard-logo.svg/1280px-Mastercard-logo.svg.png"
+                             height="20" class="grayscale" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    body {
+        background-color: #f8f9fa;
+    }
+
+    .grayscale {
+        filter: grayscale(1);
+        opacity: 0.5;
+    }
+
+    .card {
+        transition: transform 0.2s;
+    }
+
+        .card:hover {
+            transform: translateY(-2px);
+        }
+</style>
+
+@code {
+    private string BaseApiUrl = "https://localhost:7246";
+    private GioHangDTO? gioHang;
+    private bool isLoading = true;
+    private bool _firstRender = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            CartState.OnChange += ReloadCart;
+            await LoadCart();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadCart()
+    {
+        try
+        {
+            isLoading = true;
+
+            var khachId = await JS.InvokeAsync<string>("localStorage.getItem", "khachHangId");
+            if (string.IsNullOrEmpty(khachId)) return;
+
+            gioHang = await GioHangService.LayTheoTaiKhoanAsync(Guid.Parse(khachId));
+
+            CartState.SetCount(gioHang?.DanhSachChiTiet.Count ?? 0);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task UpdateQuantity(
+ GioHangChiTietDTO item,
+ int change)
+    {
+        int newQuantity = item.SoLuong + change;
+
+        if (newQuantity < 1)
+            return;
+
+        try
+        {
+            // gọi API kiểm tra kho thật
+            await GioHangService.CapNhatSoLuong(
+                item.GioHangChiTietId,
+                newQuantity);
+
+            // cập nhật giao diện
+            item.SoLuong = newQuantity;
+
+            // cập nhật localStorage
+            var selectedItems = gioHang.DanhSachChiTiet
+                .Where(x => x.IsSelected)
+                .ToList();
+
+            var json = System.Text.Json.JsonSerializer.Serialize(selectedItems);
+
+            await JS.InvokeVoidAsync(
+                "localStorage.setItem",
+                "checkoutItems",
+                json);
+        }
+        catch (Exception ex)
+        {
+            // load lại dữ liệu mới nhất từ DB
+            await LoadCart();
+
+            await JS.InvokeVoidAsync(
+                "alert",
+                ex.Message);
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task Xoa(Guid id)
+    {
+        if (await JS.InvokeAsync<bool>("confirm", "Xóa sản phẩm này khỏi giỏ hàng?"))
+        {
+            await GioHangService.XoaSanPham(id);
+
+            await LoadCart(); // reload lại giỏ
+        }
+    }
+
+    private async Task XemChiTiet(GioHangChiTietDTO item)
+    {
+        // Vì DTO chưa có GiayId → tìm lại theo tên
+        var list = await GiayService.SearchAsync(item.TenGiay);
+        var giay = list?.FirstOrDefault();
+
+        if (giay == null)
+        {
+            await JS.InvokeVoidAsync("alert", "Không tìm thấy sản phẩm");
+            return;
+        }
+
+        // 👉 ĐIỀU HƯỚNG ĐÚNG TRANG BẠN MUỐN
+        manager.NavigateTo($"/detailShoeCategory/{giay.GiayId}");
+    }
+
+
+    private void ReloadCart()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+
+
+    public void Dispose()
+    {
+        CartState.OnChange -= ReloadCart;
+    }
+
+    private async Task CheckoutSelected()
+    {
+        StateHasChanged();
+
+        var selectedItems = gioHang?.DanhSachChiTiet
+            ?.Where(x => x.IsSelected)
+            .ToList() ?? new();
+
+        if (!selectedItems.Any())
+        {
+            await JS.InvokeVoidAsync("alert", "Vui lòng chọn sản phẩm");
+            return;
+        }
+
+        // ✅ XÓA buyNow cũ
+        await JS.InvokeVoidAsync(
+            "localStorage.removeItem",
+            "buyNowItem");
+
+        var json = System.Text.Json.JsonSerializer.Serialize(selectedItems);
+
+        await JS.InvokeVoidAsync(
+            "localStorage.setItem",
+            "checkoutItems",
+            json);
+
+        manager.NavigateTo("/checkout");
+    }
+
+
+    private string GetFullImageUrl(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return "/images/no-image.png";
+
+        if (path.StartsWith("http"))
+            return path;
+
+        return $"{BaseApiUrl.TrimEnd('/')}/{path.TrimStart('/')}";
+    }
+}

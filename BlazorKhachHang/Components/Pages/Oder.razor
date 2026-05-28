@@ -1,0 +1,367 @@
+﻿@page "/Oder"
+@using API.Models.DTO.TraHang
+@using BlazorKhachHang.Service.IService
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Components.Web
+@inject IHoaDonService service
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@using API.Models.DTO.BanHang
+<link href="css/Oder.css" rel="stylesheet">
+<style>
+    /* Đã thanh toán */
+    .payment-paid {
+        color: green;
+    }
+
+    /* Chưa thanh toán */
+    .payment-unpaid {
+        color: #d0011b;
+    }
+
+    /* Note */
+    .note {
+        font-size: 13px;
+        color: #888;
+    }
+
+    .cancel-popup {
+        background: #fff;
+        border: 1px solid #ddd;
+        padding: 12px;
+        margin-top: 10px;
+        border-radius: 6px;
+        width: 260px;
+    }
+
+        .cancel-popup label {
+            display: flex; /* 🔥 quan trọng */
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+        }
+
+        .cancel-popup input[type="radio"] {
+            margin: 0;
+        }
+
+    .order-product-img {
+        width: 90px;
+        height: 90px;
+        object-fit: cover;
+        border-radius: 10px;
+        border: 1px solid #eee;
+        background: #f8f8f8;
+    }
+</style>
+
+<div class="tab-container">
+    @foreach (var t in Tabs)
+    {
+        <div class="tab @(t == ActiveTab ? "active" : "")"
+             @onclick="@(() => SelectTab(t))">
+            @t
+        </div>
+    }
+</div>
+
+@foreach (var order in FilteredOrders)
+{
+    <div class="order-card" @key="order.HoaDonId">
+        <div class="order-header">
+            <strong>@order.ShopName</strong>
+            <div class="TrangThai @GetStatusClass(order.TrangThai)">
+                @order.TrangThai
+            </div>
+
+        </div>
+
+        @foreach (var item in order.Items)
+        {
+            <div class="order-item" @key="item">
+                <img src="@GetFullImageUrl(item.ImageUrl)"
+                     alt="@item.ProductName"
+                     class="order-product-img"
+                     onerror="this.onerror=null;this.src='/images/no-image.png';" />
+
+                <div class="order-details">
+                    <h4>@item.ProductName</h4>
+
+                    <div class="text-muted" style="font-size:12px">
+                        Mã SP: <strong>@item.GiayChiTietId</strong>
+                    </div>
+
+
+                    @if (!string.IsNullOrEmpty(item.Size))
+                    {
+                        <div>Size: <strong>@item.Size</strong></div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(item.MauSac))
+                    {
+                        <div>Màu sắc: <strong>@item.MauSac</strong></div>
+                    }
+
+                    <div>Số lượng: @item.Quantity</div>
+                    <div>Giá: @item.UnitPrice.ToString("N0") VNĐ </div>
+                </div>
+
+            </div>
+
+        }
+        <div class="order-price" style="text-align:right; font-weight:600">
+            Thành Tiền:
+            <span style="color:#e53935">
+                @order.TongTien.ToString("N0") VNĐ
+            </span>
+        </div>
+        <div class="payment-status @GetTrangThaiThanhToanClass(order)">
+            @GetTrangThaiThanhToanText(order)
+        </div>
+
+        <div class="note">
+            Đánh giá sản phẩm trước
+            <strong>@order.ReviewDeadline.ToString("dd-MM-yyyy")</strong>
+        </div>
+
+        @if (order.TrangThai == TrangThaiDonHang.ChoXacNhan)
+        {
+            <button class="btn btn-sm btn-danger"
+                    @onclick="() => ShowCancel(order.HoaDonId)">
+                ❌ Hủy đơn
+            </button>
+        }
+
+        @if (CancelOrderId == order.HoaDonId)
+        {
+            <div class="cancel-popup">
+                <h5>Chọn lý do hủy đơn</h5>
+                <label>
+                    <input type="radio" name="reason"
+                           @onchange="@(() => SelectedReason = "Đổi ý không mua nữa")" />
+                    <span>Đổi ý không mua nữa</span>
+                </label>
+
+                <label>
+                    <input type="radio" name="reason"
+                           @onchange="@(() => SelectedReason = "Tìm được giá tốt hơn")" />
+                    <span>Tìm được giá tốt hơn</span>
+                </label>
+
+                <label>
+                    <input type="radio" name="reason"
+                           @onchange="@(() => SelectedReason = "Đặt nhầm sản phẩm")" />
+                    <span>Đặt nhầm sản phẩm</span>
+                </label>
+
+                <label>
+                    <input type="radio" name="reason"
+                           @onchange="@(() => SelectedReason = "Khác")" />
+                    <span>Khác</span>
+                </label>
+
+                <!-- Textbox nhập lý do khác -->
+                <div id="otherReasonBox" style="display:none; margin-top:10px;">
+                    <textarea id="otherReasonText"
+                      class="form-control"
+                      placeholder="Vui lòng nhập lý do..."></textarea>
+                </div>
+
+                <div style="margin-top:10px">
+                    <button class="btn btn-danger" @onclick="ConfirmCancel">
+                        Xác nhận hủy
+                    </button>
+
+                    <button class="btn btn-secondary" @onclick="CloseCancel">
+                        Đóng
+                    </button>
+                </div>
+            </div>
+        }
+
+
+        <button class="btn btn-outline-secondary btn-sm"
+                disabled="@(CancelOrderId == order.HoaDonId)"
+                @onclick="() => XemChiTiet(order)">
+            Xem chi tiết
+        </button>
+
+        @if (order.TrangThai == TrangThaiDonHang.HoanThanh)
+        {
+            <button class="btn btn-warning btn-sm"
+                    @onclick="() => GoToReturn(order)">
+                🔄 Trả hàng
+            </button>
+        }
+    </div>
+}
+@code {
+    private string BaseApiUrl = "https://localhost:7246";
+    private List<string> Tabs = new()
+{
+    "Tất cả",
+    TrangThaiDonHang.ChoXacNhan,
+    TrangThaiDonHang.ChoGiaoHang,
+    TrangThaiDonHang.DangGiaoHang,
+    TrangThaiDonHang.HoanThanh,
+    TrangThaiDonHang.DaHuy,
+    TrangThaiDonHang.TraHang
+};
+
+    private string ActiveTab = "Tất cả";
+
+    private string GetStatusClass(string status) => status switch
+    {
+
+        TrangThaiDonHang.DangGiaoHang => "shipping",
+        TrangThaiDonHang.ChoGiaoHang => "delivering",
+        TrangThaiDonHang.HoanThanh => "done",
+        TrangThaiDonHang.DaHuy => "cancelled",
+        TrangThaiDonHang.TraHang => "returning",
+        _ => "default-status"
+    };
+
+
+
+
+    private string GetFullImageUrl(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return "/images/no-image.png";
+
+        if (path.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            return path;
+
+        return $"{BaseApiUrl.TrimEnd('/')}/{path.TrimStart('/')}";
+    }
+
+    private List<OrderModel> Orders = new();
+
+    private bool _loaded = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadOrders();
+            StateHasChanged(); // cần để render lại sau khi load
+        }
+    }
+
+    private async Task LoadOrders()
+    {
+        var khachHangIdStr =
+            await JS.InvokeAsync<string>("localStorage.getItem", "khachHangId");
+
+        if (string.IsNullOrEmpty(khachHangIdStr))
+            return;
+
+        var hoaDons = await service.GetDonHangKhachHangAsync(
+            Guid.Parse(khachHangIdStr)
+        );
+
+        Orders = hoaDons.Select(h => new OrderModel
+        {
+            HoaDonId = h.HoaDonId,
+            TrangThai = h.TrangThai,
+            Category = h.TrangThai,
+
+            TrangThaiThanhToan = h.TrangThaiThanhToan,
+            ReviewDeadline = h.NgayTao.AddDays(7),
+            TongTien = h.TongTien,
+            HinhThucThanhToan = h.HinhThucThanhToan,
+            Items = h.ChiTiet.Select(ct => new OrderItemModel
+            {
+                GiayChiTietId = ct.GiayChiTietId,
+                ProductName = ct.TenGiay,
+                MauSac = ct.MauSac,
+                Size = ct.Size,
+                Quantity = ct.SoLuongSanPham,
+                UnitPrice = ct.DonGia,
+                ImageUrl = ct.Anh ?? "img/no-image.png"
+            }).ToList()
+        }).ToList();
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private List<OrderModel> FilteredOrders =>
+      ActiveTab == "Tất cả"
+          ? Orders
+          : Orders.Where(o =>
+              o.TrangThai?.Trim()
+              .Equals(ActiveTab.Trim(), StringComparison.OrdinalIgnoreCase) == true
+            ).ToList();
+
+    private void SelectTab(string tab)
+    {
+        ActiveTab = tab;
+        StateHasChanged();
+    }
+
+
+    private string GetTrangThaiThanhToanText(OrderModel order)
+    {
+        // COD
+        if (order.HinhThucThanhToan == "COD")
+        {
+            return order.TrangThaiThanhToan == "Đã thanh toán"
+                ? "Đã thanh toán (COD)"
+                : "Thanh toán khi nhận hàng";
+        }
+
+        // Online
+        return order.TrangThaiThanhToan == "Đã thanh toán"
+            ? "Đã thanh toán"
+            : "Chưa thanh toán";
+    }
+    private string GetTrangThaiThanhToanClass(OrderModel order)
+    {
+        return order.TrangThaiThanhToan == "Đã thanh toán"
+            ? "payment-paid"
+            : "payment-unpaid";
+    }
+
+    private void XemChiTiet(OrderModel order)
+    {
+        // Điều hướng sang trang /donmua
+        // Hiện tại /donmua đang load theo khách hàng → OK luôn
+        Nav.NavigateTo($"/donmua/{order.HoaDonId}");
+    }
+    private Guid? CancelOrderId = null;
+    private string SelectedReason = "";
+    private void ShowCancel(Guid id)
+    {
+        CancelOrderId = id;
+        SelectedReason = "";
+    }
+
+    private void CloseCancel()
+    {
+        CancelOrderId = null;
+    }
+
+    private async Task ConfirmCancel()
+    {
+        if (CancelOrderId == null || string.IsNullOrEmpty(SelectedReason))
+        {
+            await JS.InvokeVoidAsync("alert", "Vui lòng chọn lý do hủy");
+            return;
+        }
+
+        await service.HuyDonHangAsync(CancelOrderId.Value, SelectedReason);
+
+        CancelOrderId = null;
+
+        await LoadOrders();
+    }
+
+    private void GoToReturn(OrderModel order)
+    {
+        // Không cần tạo DTO ở đây nếu trang /trahang đã tự gọi API LoadData() bằng HoaDonId
+        Nav.NavigateTo($"/trahang/{order.HoaDonId}");
+    }
+
+
+}

@@ -1,0 +1,188 @@
+@page "/QuanLyNhanVien"
+@rendermode InteractiveServer
+@using Data.Models
+@using BlazorAdmin.Service
+@using BlazorAdmin.Service.IService
+@inject INhanVienService service
+@inject ITaiKhoanService TKservice
+@inject NavigationManager manager
+@inject IJSRuntime JS
+<link href="/css/site.css" rel="stylesheet" />
+
+<div class="container mt-5">
+    <h4 class="mb-3">👨‍💼 Quản lý nhân viên</h4>
+
+    <div class="card shadow-sm p-4">
+        <!-- Tìm kiếm & nút -->
+        <div class="d-flex justify-content-between mb-3">
+            <div class="input-group rounded shadow-sm" style="max-width: 500px; border: 1px solid #ced4da;">
+                <span class="input-group-text bg-white border-0">
+                    <i class="bi bi-search text-secondary"></i>
+                </span>
+                <input type="text"
+                       class="form-control border-0 shadow-none"
+                       placeholder="🔍 Nhập tên nhân viên để tìm kiếm..."
+                       @bind="searchKeyword"
+                       @bind:event="oninput"
+                       style="font-size: 1rem;" />
+                <button class="btn btn-outline-primary rounded-end" @onclick="Search" type="button">
+                    <i class="bi bi-arrow-right-circle me-1"></i> Tìm
+                </button>
+            </div>
+            <button class="btn btn-outline-primary" @onclick="NavigateToCreate">➕ Tạo mới</button>
+        </div>
+
+        <!-- Bảng dữ liệu -->
+        <table class="table table-bordered table-hover">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 60px;">STT</th>
+                    <th>Họ tên</th>
+                    <th>Số điện thoại</th>
+                    <th>Email</th>
+                    <th>Ngày sinh</th>
+                    <th>Chức vụ</th>
+                    <th>Ngày cập nhật</th>
+                    <th style="width: 180px;">Trạng thái</th>
+                    <th style="width: 120px;">Chức năng</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!NhanViens.Any())
+                {
+                    <tr>
+                        <td colspan="9" class="text-center text-muted">Không tìm thấy nhân viên nào.</td>
+                    </tr>
+                }
+                @{
+                    int stt = 1;
+                }
+             
+                 
+                    @foreach (var item in NhanViens)
+                    {
+                        <tr>
+                            <td>@stt</td>
+                            <td>@item.HoTen</td>
+                            <td>@item.SoDienThoai</td>
+                            <td>@item.Email</td>
+                            <td>@item.NgaySinh.ToString("dd/MM/yyyy")</td>
+                            <td>@(item.ChucVu != null ? item.ChucVu.MotaChucVu : "Không có chức vụ")</td>
+                            <td>@item.NgayCapNhatCuoiCung</td>
+                            <td>
+                                <i class="bi bi-arrow-repeat @(item.TrangThai ? "text-danger" : "text-success") me-2" style="cursor: pointer;" title="Chuyển trạng thái" @onclick="() => ToggleTrangThai(item.NhanVienId)"></i>
+                            <span class="badge @(item.TrangThai ? "bg-success" : "bg-danger")">
+                                @(item.TrangThai ? "Đang hoạt động" : "Ngừng hoạt động")
+                            </span>
+
+                            </td>
+                            <td>
+                                <i class="bi bi-pencil-square text-primary me-2" style="cursor: pointer;" title="Sửa" @onclick="() => NavigateToEdit(item.NhanVienId)"></i>
+                                <i class="bi bi-trash text-danger" style="cursor: pointer;" title="Xóa" @onclick="() => DeleteAsyncNhanVien(item.NhanVienId)"></i>
+                            </td>
+                        </tr>
+                        stt++;
+                    }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+    .input-group .form-control:focus {
+        box-shadow: none;
+    }
+
+    .btn-primary, .btn-outline-primary {
+        transition: background-color 0.3s ease, transform 0.2s ease;
+    }
+
+        .btn-primary:hover, .btn-outline-primary:hover {
+            background-color: #0b5ed7;
+            transform: translateY(-1px);
+        }
+
+    .input-group-text {
+        background-color: #f8f9fa;
+    }
+
+    td.trang-thai {
+        min-width: 150px;
+        white-space: nowrap;
+    }
+</style>
+
+
+@code {
+    private List<NhanVien> NhanViens;
+    private string searchKeyword = "";
+    private readonly Guid adminId = Guid.Parse("88888888-8888-8888-8888-888888888888");
+    protected override async Task OnInitializedAsync()
+    {
+        if (NhanViens == null)
+        {
+            NhanViens = new List<NhanVien>();
+        }
+        NhanViens = await service.GetAllNhanVienAsync();
+        await LoadNhanViensAsync();
+    }
+    private async Task LoadNhanViensAsync()
+    {
+        var allNhanViens = await service.GetAllNhanVienAsync();
+        NhanViens = allNhanViens.Where(x => x.NhanVienId != adminId).ToList();
+    }
+
+    protected void NavigateToCreate()
+    {
+        manager.NavigateTo("/AddNhanVien");
+    }
+    protected void NavigateToEdit(Guid id)
+    {
+        manager.NavigateTo($"/EditNhanVien/{id}");
+    }
+
+    private async Task DeleteAsyncNhanVien(Guid id)
+    {
+        var deleNhanVien = await JS.InvokeAsync<bool>("confirm", $"Bạn có chắc chắn muốn xóa không?");
+        if (deleNhanVien)
+        {
+            var nhanVien = await service.GetByIdNhanVienAsync(id);
+            if (nhanVien != null)
+            {
+                if (nhanVien.TaikhoanId.HasValue)
+                {
+                    await TKservice.DeleteTaiKhoanAsync(nhanVien.TaikhoanId.Value);
+                }
+                await service.DeleteNhanVienAsync(id);
+                await LoadNhanViensAsync();
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task ToggleTrangThai(Guid id)
+    {
+        var nhanVien = NhanViens.FirstOrDefault(x => x.NhanVienId == id);
+        if (nhanVien != null)
+        {
+            nhanVien.TrangThai = !nhanVien.TrangThai;
+            nhanVien.NgayCapNhatCuoiCung = DateTime.Now;
+            await service.UpdateNhanVienAsync(nhanVien);
+            await LoadNhanViensAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task Search()
+    {
+        if (string.IsNullOrWhiteSpace(searchKeyword))
+        {
+            await LoadNhanViensAsync();
+        }
+        else
+        {
+            var result = await service.SearchNhanVien(searchKeyword);
+            NhanViens = result.Where(x => x.NhanVienId != adminId).ToList();
+        }
+    }
+}

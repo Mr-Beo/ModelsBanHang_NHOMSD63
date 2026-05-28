@@ -1,0 +1,226 @@
+﻿@page "/TraHang"
+@inject IReturnService ReturnService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
+@using API.Models.DTO.TraHang
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+<style>
+    body {
+        background-color: #e9ecef;
+        font-family: "Segoe UI", sans-serif;
+    }
+
+    .btn-outline-danger:hover {
+        background-color: #ffecec;
+    }
+
+    .search-container {
+        max-width: 900px;
+        margin: 50px auto;
+        background-color: #fff;
+        padding: 30px;
+        border-radius: 16px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    }
+
+    .search-title {
+        text-align: center;
+        font-weight: 600;
+        font-size: 1.5rem;
+        margin-bottom: 30px;
+        color: #198754;
+    }
+
+    .form-label {
+        font-weight: 500;
+    }
+
+    .btn-success {
+        background-color: #198754;
+        border: none;
+    }
+
+    .btn-outline-secondary:hover {
+        background-color: #dee2e6;
+    }
+
+    #advancedSearch {
+        margin-top: 20px;
+        background-color: #f8f9fa;
+        padding: 20px;
+        border-radius: 12px;
+    }
+
+    .table-container {
+        max-width: 1100px;
+        margin: 40px auto;
+    }
+
+    .table th,
+    .table td {
+        vertical-align: middle !important;
+    }
+</style>
+
+<div class="search-container">
+    <div class="search-title">Tìm kiếm hóa đơn trả hàng</div>
+    <div class="row g-3 align-items-end">
+        <div class="col-md-8 col-12">
+            <label for="maHoaDon" class="form-label">Nhập mã hóa đơn</label>
+            <InputText id="maHoaDon" class="form-control" @bind-Value="MaHoaDon" list="maHoaDonList" placeholder="Nhập hoặc chọn mã hóa đơn..." />
+            <datalist id="maHoaDonList">
+                @foreach (var item in HoaDons)
+                {
+                    <option value="@item.HoaDonId" />
+                }
+            </datalist>
+            <InputText type="hidden" id="searchMa" @bind-Value="MaHoaDon" />
+        </div>
+        <div class="col-md-4 col-12">
+            <div class="d-grid gap-2 mb-2">
+                <button class="btn btn-success" @onclick="SearchAsync">Tìm kiếm</button>
+                <button class="btn btn-outline-secondary" @onclick="ToggleAdvancedSearch">Tìm kiếm nâng cao</button>
+            </div>
+            <button class="btn btn-outline-danger w-100" @onclick="ClearSearch">Clear tìm kiếm</button>
+        </div>
+
+    </div>
+    <div id="advancedSearch" style="@(ShowAdvancedSearch ? "display: block;" : "display: none;")">
+        <div class="row g-2 mt-3">
+            <div class="col-md-3 col-6">
+                <InputText class="form-control form-control-sm" @bind-Value="TenKhachHang" placeholder="Tên khách hàng" id="searchTen" />
+            </div>
+            <div class="col-md-3 col-6">
+                <InputText class="form-control form-control-sm" @bind-Value="Sdt" placeholder="SĐT khách hàng" id="searchSDT" />
+            </div>
+            <div class="col-md-2 col-6">
+                <InputDate class="form-control form-control-sm" @bind-Value="NgayTao" id="searchNgay" />
+            </div>
+            <div class="col-md-2 col-6">
+                <InputText class="form-control form-control-sm" @bind-Value="TongTien" placeholder="Tổng tiền" id="searchTien" />
+            </div>
+            <div class="col-md-2 col-6">
+                <InputText class="form-control form-control-sm" @bind-Value="TrangThai" placeholder="Trạng thái" id="searchTrangThai" />
+            </div>
+            <div class="col-md-3 col-6">
+                <InputText class="form-control form-control-sm" @bind-Value="HinhThucThanhToan" placeholder="Hình thức thanh toán" id="searchHTTT" />
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="table-container">
+    <div class="table-responsive">
+        <table class="table table-bordered align-middle" id="hoaDonTable">
+            <thead class="table-light">
+                <tr>
+                    <th>Mã hóa đơn</th>
+                    <th>Tên khách hàng</th>
+                    <th>SĐT khách hàng</th>
+                    <th>Ngày tạo</th>
+                    <th>Tổng tiền sau giảm</th>
+                    <th>Trạng thái</th>
+                    <th>Hình thức thanh toán</th>
+                    <th>Hành động</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in HoaDons)
+                {
+                    <tr>
+                        <td>@item.HoaDonId</td>
+                        <td>@item.TenCuaKhachHang</td>
+                        <td>@item.SDTCuaKhachHang</td>
+                        <td>@item.NgayTao.ToString("dd/MM/yyyy")</td>
+                        <td>@item.TongTienSauKhiGiam.ToString("N0")₫</td>
+                        <td>@item.TrangThai</td>
+                        <td>@(item.TenHinhThuc ?? "N/A")</td>
+                        <td><button class="btn btn-warning btn-sm" @onclick="() => NavigateToDetail(item.HoaDonId)">Trả hàng</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+
+@code {
+    private List<ReturnDTO> HoaDons { get; set; } = new List<ReturnDTO>();
+    private string MaHoaDon { get; set; }
+    private string TenKhachHang { get; set; }
+    private string Sdt { get; set; }
+    private DateTime? NgayTao { get; set; }
+    private string TrangThai { get; set; }
+    private string TongTien { get; set; }
+    private string HinhThucThanhToan { get; set; }
+    private string NhanVien { get; set; }
+    private bool ShowAdvancedSearch { get; set; } = false;
+
+    private async Task ClearSearch()
+    {
+        try
+        {
+            MaHoaDon = string.Empty;
+            TenKhachHang = string.Empty;
+            Sdt = string.Empty;
+            NgayTao = null;
+            TongTien = string.Empty;
+            TrangThai = string.Empty;
+            HinhThucThanhToan = string.Empty;
+            ShowAdvancedSearch = false;
+
+            // Gọi lại tìm kiếm để làm mới danh sách
+            await SearchAsync();
+            StateHasChanged();
+            await JSRuntime.InvokeVoidAsync("console.log", "Cleared search fields and refreshed results");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"Error in ClearSearch: {ex.Message}");
+        }
+    }
+    protected override async Task OnInitializedAsync()
+    {
+        HoaDons = await ReturnService.SearchHoaDonAsync();
+    }
+
+    private async Task SearchAsync()
+    {
+        HoaDons = await ReturnService.SearchHoaDonAsync(MaHoaDon, TenKhachHang, Sdt, NgayTao, TrangThai);
+        await JSRuntime.InvokeVoidAsync("filterTable");
+    }
+
+    private void ToggleAdvancedSearch()
+    {
+        ShowAdvancedSearch = !ShowAdvancedSearch;
+    }
+
+    private void NavigateToDetail(Guid hoaDonId)
+    {
+        NavigationManager.NavigateTo($"/TraHang/{hoaDonId}");
+    }
+}
+
+<script>
+    window.filterTable = function () {
+        const rows = document.querySelectorAll('#hoaDonTable tbody tr');
+        const searchValues = [
+            document.getElementById('searchMa')?.value.trim().toLowerCase() || '',
+            document.getElementById('searchTen')?.value.trim().toLowerCase() || '',
+            document.getElementById('searchSDT')?.value.trim().toLowerCase() || '',
+            document.getElementById('searchNgay')?.value.trim().toLowerCase() || '',
+            document.getElementById('searchTien')?.value.trim().toLowerCase() || '',
+            document.getElementById('searchTrangThai')?.value.trim().toLowerCase() || '',
+            document.getElementById('searchHTTT')?.value.trim().toLowerCase() || '',
+            document.getElementById('searchNV')?.value.trim().toLowerCase() || ''
+        ];
+
+        rows.forEach(row => {
+            const cells = Array.from(row.cells).map(td => td.textContent.trim().toLowerCase());
+            const isMatch = searchValues.every((val, idx) => !val || cells[idx].includes(val));
+            row.style.display = isMatch ? '' : 'none';
+        });
+    };
+</script>
