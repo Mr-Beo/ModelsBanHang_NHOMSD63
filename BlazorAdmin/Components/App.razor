@@ -22,9 +22,42 @@
     <!-- Add sortable.js reference if SortableList component is used in your application. -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script>
+        let html5QrCode;
 
+        window.startQrScanner = async function (dotnetHelper) {
+
+            html5QrCode = new Html5Qrcode("qr-reader");
+
+            await html5QrCode.start(
+                { facingMode: "environment" },
+                {
+                    fps: 10,
+                    qrbox: 250
+                },
+                function (decodedText) {
+
+                    html5QrCode.stop();
+
+                    dotnetHelper.invokeMethodAsync(
+                        "ReceiveQRCode",
+                        decodedText
+                    );
+                }
+            );
+        };
+
+        window.stopQrScanner = async function () {
+
+            if (html5QrCode) {
+                await html5QrCode.stop();
+            }
+        };
+    </script>
     <script src="_content/Blazor.Bootstrap/blazor.bootstrap.js"></script>
     <script src="_framework/blazor.web.js"></script>
+
 </body>
 
 </html>

@@ -49,6 +49,7 @@
             <div class="order-actions-buttons">
 
                 <button class="qr-btn" @onclick="ScanQRCode">📷 Quét QR sản phẩm</button>
+
                 <button class="add-btn" @onclick="() => IsProductModalVisible = true">Thêm sản phẩm</button>
                 <ProductSelect Visible="@IsProductModalVisible"
                                OnAddProduct="HandleAddProduct"
@@ -56,6 +57,19 @@
             </div>
         </div>
 
+    }
+    @if (ShowQrScanner)
+    {
+        <div class="modal-overlay">
+            <div class="modal-content">
+                <div id="qr-reader"></div>
+
+                <button class="btn btn-danger"
+                        @onclick="CloseQrScanner">
+                    Đóng
+                </button>
+            </div>
+        </div>
     }
     @if (CurrentOrder != null)
     {
@@ -504,7 +518,8 @@
     private List<Voucher> vouchers = new();
     private Voucher selectedVoucher = new();
     private Guid? KhachLeId;
-
+    private bool ShowQrScanner = false;
+    private bool StartScannerAfterRender = false;
     private async Task ToggleVoucher(Voucher voucher)
     {
         voucherError = "";
@@ -717,11 +732,60 @@
 
 
 
-    private void ScanQRCode()
+    private async void ScanQRCode()
     {
-        // TODO: QR
+        ShowQrScanner = true;
+        StartScannerAfterRender = true;
     }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (StartScannerAfterRender)
+        {
+            StartScannerAfterRender = false;
 
+            await JS.InvokeVoidAsync(
+                "startQrScanner",
+                DotNetObjectReference.Create(this));
+        }
+    }
+    [JSInvokable]
+    public async Task ReceiveQRCode(string qrContent)
+    {
+        if (!Guid.TryParse(qrContent, out Guid giayChiTietId))
+        {
+            await JS.InvokeVoidAsync("alert",
+                "QR không hợp lệ");
+            return;
+        }
+
+        var product =
+            await GiayChiTietService.GetByIdAsync(giayChiTietId);
+
+        if (product == null)
+        {
+            await JS.InvokeVoidAsync("alert",
+                "Không tìm thấy sản phẩm");
+            return;
+        }
+
+        await HandleAddProduct(product);
+
+        ShowQrScanner = false;
+
+        StateHasChanged();
+
+        await JS.InvokeVoidAsync("Swal.fire", new
+        {
+            icon = "success",
+            title = "Đã thêm sản phẩm"
+        });
+    }
+    private async Task CloseQrScanner()
+    {
+        ShowQrScanner = false;
+
+        await JS.InvokeVoidAsync("stopQrScanner");
+    }
     private void ResetCustomer()
     {
         CurrentOrder.Customer = null;
